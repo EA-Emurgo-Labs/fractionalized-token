@@ -15,17 +15,17 @@
 {-# LANGUAGE TypeOperators         #-}
 
 import           Cardano.Api         hiding (TxId)
-import           MarketplaceContract
+import           FNFTContract
 import           PlutusTx.Prelude    as P hiding (Semigroup (..), unless, (.))
 import           Prelude             (IO)
 import qualified Prelude             as Haskell
 
 main :: IO ()
 main = do
-  let marketplaceContract = "built-contracts/marketplace-contract.json"
+  let fnftContract = "built-contracts/fnft-contract.json"
 
   -- Built the plutus script for Marketplace Contract
-  resultMarketplaceContract <- writeFileTextEnvelope marketplaceContract Nothing $ buildMarketplaceContract ()
-  case resultMarketplaceContract of
+  resultFNFTContract <- writeFileTextEnvelope fnftContract Nothing $ buildFNFTContract ()
+  case resultFNFTContract of
     Left err -> Haskell.print $ displayError err
-    Right () -> Haskell.putStrLn $ "Built marketplace contract successfully at: " ++ marketplaceContract
+    Right () -> Haskell.putStrLn $ "Built marketplace contract successfully at: " ++ fnftContract

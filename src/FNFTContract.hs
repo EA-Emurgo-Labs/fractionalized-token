@@ -14,9 +14,9 @@
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeOperators         #-}
 
-module MarketplaceContract
-  ( buildMarketplaceContract
-  , saveMarketplaceCode
+module FNFTContract
+  ( buildFNFTContract
+  , saveFNFTCode
   , validator
   , validatorHash
   , RedeemerParams(..)
@@ -50,10 +50,10 @@ import           Prelude                              (FilePath, IO, Show (..),
 {-
 There are four cases will happen on market place:
 + BUY: user will make a request to buy the asset on our system, then the user
-will interact with the Marketplace Contract to buy and update asset's owner.
+will interact with the FNFT Contract to buy and update asset's owner.
 + WITHDRAW: user will make a request to withdraw the asset, then the user
-will interact with the Marketplace Contract to withdraw.
-+ CANCELL: the user pending trade on marketplace
+will interact with the FNFT Contract to withdraw.
++ CANCELL: the user pending trade on FNFT
 + SELL: the user change new price for asset
 + BUY_PARTIAL: the user can buy a part of the order
 -}
@@ -75,7 +75,7 @@ PlutusTx.makeIsDataIndexed
   ''RedeemerParams
   [('BUY, 0), ('WITHDRAW, 1), ('SELL, 2), ('CANCELL, 3), ('BUY_PARTIAL, 4)]
 
--- This is the validator function of Marketplace Contract
+-- This is the validator function of FNFT Contract
 {-# INLINABLE mkValidator #-}
 mkValidator ::
      () -> AssetDatumParams -> RedeemerParams -> PlutusV2.ScriptContext -> Bool
@@ -90,7 +90,7 @@ mkValidator _ dParams rParams scriptContext =
         "[Plutus Error]: this asset is not for sale"
         (salePrice dParams > 0) &&
       traceIfFalse
-        "[Plutus Error]: the asset in output must be sent to the Marketplace Contract address only"
+        "[Plutus Error]: the asset in output must be sent to the FNFT Contract address only"
         checkAssetInOutput &&
       traceIfFalse
         "[Plutus Error]: output datum (buy) is not correct"
@@ -110,7 +110,7 @@ mkValidator _ dParams rParams scriptContext =
         "[Plutus Error]: amount for buy has to smaller total"
         (amountBuy <= assetAmount dParams) &&
       traceIfFalse
-        "[Plutus Error]: the asset in output must be sent to the Marketplace Contract address only"
+        "[Plutus Error]: the asset in output must be sent to the FNFT Contract address only"
         checkAssetInOutput &&
       traceIfFalse
         "[Plutus Error]: output datum (buy) is not correct"
@@ -130,7 +130,7 @@ mkValidator _ dParams rParams scriptContext =
         "[Plutus Error]: owner is not correct"
         (txSignedBy info $ owner dParams) &&
       traceIfFalse
-        "[Plutus Error]: the asset in output must be sent to the Marketplace Contract address only"
+        "[Plutus Error]: the asset in output must be sent to the FNFT Contract address only"
         checkAssetInOutput &&
       traceIfFalse
         "[Plutus Error]: output datum is not correct"
@@ -142,7 +142,7 @@ mkValidator _ dParams rParams scriptContext =
         "[Plutus Error]: owner is not correct"
         (txSignedBy info $ owner dParams) &&
       traceIfFalse
-        "[Plutus Error]: the asset in output must be sent to the Marketplace Contract address only"
+        "[Plutus Error]: the asset in output must be sent to the FNFT Contract address only"
         checkAssetInOutput &&
       traceIfFalse
         "[Plutus Error]: output datum is not correct"
@@ -166,9 +166,9 @@ mkValidator _ dParams rParams scriptContext =
       case PlutusV2.findOwnInput scriptContext of
         Nothing ->
           traceError
-            "[Plutus Error]: cannot find the input associated with the Marketplace Contract address"
+            "[Plutus Error]: cannot find the input associated with the FNFT Contract address"
         Just i -> PlutusV2.txInInfoResolved i
-    -- Get the Marketplace Contract address associated with the asset in input
+    -- Get the FNFT Contract address associated with the asset in input
     -- contractAddress :: PlutusV2.Address
     -- contractAddress = PlutusV2.txOutAddress mainInput
     -- Get the value of the Asset
@@ -182,7 +182,7 @@ mkValidator _ dParams rParams scriptContext =
        in amt == assetAmount dParams && tokenName == tn
     {-
     This function is to check which address that the asset has been sent to in outputs
-    In case of buying and reselling, the asset must be sent to the Marketplace Contract address only.
+    In case of buying and reselling, the asset must be sent to the FNFT Contract address only.
     -}
     checkAssetInOutput :: Bool
     checkAssetInOutput =
@@ -309,18 +309,18 @@ instance Scripts.ValidatorTypes ContractType where
   type DatumType ContractType = AssetDatumParams
   type RedeemerType ContractType = RedeemerParams
 
-typedMarketplaceValidator :: () -> PlutusV2.TypedValidator ContractType
-typedMarketplaceValidator = PlutusV2.mkTypedValidatorParam @ContractType
+typedFNFTValidator :: () -> PlutusV2.TypedValidator ContractType
+typedFNFTValidator = PlutusV2.mkTypedValidatorParam @ContractType
     $$(PlutusTx.compile [|| mkValidator ||])
     $$(PlutusTx.compile [|| wrap ||])
   where
     wrap = Scripts.mkUntypedValidator
 
 validator :: () -> PSU.V2.Validator
-validator = Scripts.validatorScript . typedMarketplaceValidator
+validator = Scripts.validatorScript . typedFNFTValidator
 
 validatorHash :: () -> PSU.V2.ValidatorHash
-validatorHash = Scripts.validatorHash . typedMarketplaceValidator
+validatorHash = Scripts.validatorHash . typedFNFTValidator
 
 script :: () -> PlutusV2.Script
 script = PlutusV2.unValidatorScript . validator
@@ -328,12 +328,12 @@ script = PlutusV2.unValidatorScript . validator
 scriptSBS :: () -> SBS.ShortByteString
 scriptSBS = SBS.toShort . LBS.toStrict . serialise . script
 
-buildMarketplaceContract :: () -> PlutusScript PlutusScriptV2
-buildMarketplaceContract = PlutusScriptSerialised . scriptSBS
+buildFNFTContract :: () -> PlutusScript PlutusScriptV2
+buildFNFTContract = PlutusScriptSerialised . scriptSBS
 
 ---------------------------------------------------------------------------------------------------------------
 ------------------------------------------------- HELPER FUNCTIONS --------------------------------------------
--- This is another version for marketplace contract, it uses dynamic params to build the parameterized contract
+-- This is another version for FNFT contract, it uses dynamic params to build the parameterized contract
 -- We will apply it later
 {-# INLINABLE wrapValidator #-}
 wrapValidator ::
@@ -373,8 +373,8 @@ writeScriptToFile filePath plutusScript =
 writeCodeToFile :: FilePath -> PlutusTx.CompiledCode a -> IO ()
 writeCodeToFile filePath = writeScriptToFile filePath . codeToScript
 
-saveMarketplaceCode :: IO ()
-saveMarketplaceCode =
+saveFNFTCode :: IO ()
+saveFNFTCode =
   writeCodeToFile
-    "./built-contracts/marketplace-parameterized-contract.json"
+    "./built-contracts/FNFT-parameterized-contract.json"
     validatorCode

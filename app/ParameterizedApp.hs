@@ -15,9 +15,9 @@
 {-# LANGUAGE LambdaCase            #-}
 
 import Prelude                    (IO)
-import MarketplaceContract
+import FNFTContract
 
 -- This is the main function for parameterized contracts
 main :: IO ()
 main = do
-  MarketplaceContract.saveMarketplaceCode
+  FNFTContract.saveFNFTCode

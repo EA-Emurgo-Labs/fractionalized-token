@@ -9,7 +9,7 @@ License:            Apache-2.0
 
 library
   hs-source-dirs:      src
-  exposed-modules:     MarketplaceContract
+  exposed-modules:     FNFTContract
                      , GeneralParams
                      , Utility
                      , Free
@@ -36,8 +36,8 @@ library
                        -fno-spec-constr -fno-specialise -fexpose-all-unfoldings
                        -fplugin-opt PlutusTx.Plugin:defer-errors
 
-executable marketplace-contract
-  main-is:            MarketplaceApp.hs
+executable fnft-contract
+  main-is:            FNFTApp.hs
   hs-source-dirs:     app
   default-language:   Haskell2010
   ghc-options:        -Wall -fobject-code -fno-ignore-interface-pragmas
