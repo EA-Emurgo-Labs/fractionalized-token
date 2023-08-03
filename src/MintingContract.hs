@@ -44,76 +44,52 @@ import           PlutusTx.Prelude                as P hiding (Semigroup (..),
 import           Prelude                         (FilePath, IO, print, putStrLn,
                                                   (.))
 import qualified GeneralParams
+import Plutus.Script.Utils.Value (TokenName(TokenName))
+
+data MintingRedeemer
+  = InitialMint TxOutRef
+    | Burn
+
+PlutusTx.makeLift ''MintingRedeemer
+PlutusTx.makeIsDataIndexed ''MintingRedeemer [('InitialMint, 0), ('Burn, 1)]
+
+
 -- This is the validator function of Minting Contract
 {-# INLINABLE mkNFTPolicy #-}
-mkNFTPolicy :: () ->() -> PlutusV2.ScriptContext -> Bool
-mkNFTPolicy params _ scriptContext =
-    -- traceIfFalse "[Plutus Error]: you're not the operator to mint NFT" ownOperatorTokenInInput &&
-    traceIfFalse "[Plutus Error]: minted amount must be one" checkMintedAmount 
-    -- traceIfFalse "[Plutus Error]: output datum is not correct" (checkOutputDatum $ parseOutputDatumInTxOut $ getTxOutHasNFT)
+mkNFTPolicy :: () -> MintingRedeemer -> PlutusV2.ScriptContext -> Bool
+mkNFTPolicy _ redeem scriptContext =
+  case redeem of
+    InitialMint utxo -> validateInitialMint utxo scriptContext
+    Burn -> validateBurn scriptContext
+
+{-# INLINEABLE extractMintedAmt #-}
+extractMintedAmt :: PlutusV2.TokenName -> [(PlutusV2.TokenName, Integer)] -> Integer
+extractMintedAmt exTokenName mintedTokens =
+  let token = find (\(exTokenName', _) -> exTokenName' == exTokenName) mintedTokens
+  in case token of
+    Just a -> snd a
+    _ -> 0
+
+{-# INLINEABLE extractMintedTokens #-}
+extractMintedTokens :: PlutusV2.CurrencySymbol -> PlutusV2.Value -> [(PlutusV2.TokenName, Integer)]
+extractMintedTokens mintedSymbol txMint =
+  [(tn, amt) | (cs, tn, amt) <- Value.flattenValue txMint, cs == mintedSymbol]
+
+fractionTokenName = TokenName "ADA NFT A FRACTION"
+
+{-# INLINEABLE validateInitialMint #-}
+validateInitialMint :: TxOutRef -> ScriptContext -> Bool
+validateInitialMint utxo ctx = traceIfFalse "Minted ammount fractions not positive" (fractionTokensMintedAmount > 0)
   where
-    -- Get all info about the transaction
     info :: PlutusV2.TxInfo
-    info = PlutusV2.scriptContextTxInfo scriptContext
+    info = PlutusV2.scriptContextTxInfo ctx
+    txMint = txInfoMint info
+    ownCS = ownCurrencySymbol ctx
+    extractedMintedTokens = extractMintedTokens ownCS txMint
+    fractionTokensMintedAmount = extractMintedAmt fractionTokenName extractedMintedTokens
 
-    -- Get all inputs
-    allTxIn :: [PlutusV2.TxInInfo]
-    allTxIn = PlutusV2.txInfoInputs info
-
-    -- Get all outputs
-    allTxOut :: [PlutusV2.TxOut]
-    allTxOut = PlutusV2.txInfoOutputs info
-
-    -- Check whether this transaction has the operator token in inputs
-    -- ownOperatorTokenInInput :: Bool
-    -- ownOperatorTokenInInput =
-    --   case find (
-    --     \x -> Value.assetClassValueOf (PlutusV2.txOutValue $ PlutusV2.txInInfoResolved x) (operatorToken params) == 1
-    --   ) allTxIn of
-    --     Nothing -> False
-    --     Just _  -> True
-
-    -- Get the minted NFT
-    mintedNFT :: PlutusV2.Value
-    mintedNFT = PlutusV2.txInfoMint info
-
-    -- Check the minted amount, it must be equal 1
-    checkMintedAmount :: Bool
-    checkMintedAmount = case Value.flattenValue mintedNFT of
-      [(_, _, amount)] -> amount == 1
-      _                -> False
-
-    {-
-    This function will check whether the minted NFT is in the outputs or not.
-    If yes, the txout will be used to parse and check whether the output datum is correct or not.
-    -}
-    getTxOutHasNFT :: PlutusV2.TxOut
-    getTxOutHasNFT =
-      case find (\x -> Value.symbols (PlutusV2.txOutValue x) == Value.symbols mintedNFT) allTxOut of
-        Nothing -> traceError "[Plutus Error]: cannot find the minted NFT in output"
-        Just i  -> i
-
-    -- Parse output datum to the NFTDatumParams format
-    -- parseOutputDatumInTxOut :: PlutusV2.TxOut -> Maybe NFTDatumParams
-    -- parseOutputDatumInTxOut txout = case PlutusV2.txOutDatum txout of
-    --   PlutusV2.NoOutputDatum       -> Nothing
-    --   PlutusV2.OutputDatum od      -> PlutusTx.fromBuiltinData $ PlutusV2.getDatum od
-    --   PlutusV2.OutputDatumHash odh -> case PlutusV2.findDatum odh info of
-    --                                     Just od -> PlutusTx.fromBuiltinData $ PlutusV2.getDatum $ od
-    --                                     Nothing -> Nothing
-
-    -- -- Check output datum after minting
-    -- checkOutputDatum :: Maybe NFTDatumParams -> Bool
-    -- checkOutputDatum outputDatum = case outputDatum of
-    --   Just (NFTDatumParams numTransfer currentPrice maxPrice owner salePrice) ->
-    --     traceIfFalse "[Plutus Error]: number of transfers must be greater than or equal 0" (numTransfer >= 0) &&
-    --     traceIfFalse "[Plutus Error]: current price must be greater than 0" (currentPrice > 0) &&
-    --     traceIfFalse "[Plutus Error]: max price must be greater than 0" (maxPrice > 0) &&
-    --     traceIfFalse "[Plutus Error]: owner must not be empty" (PlutusV2.getPubKeyHash owner /= "") &&
-    --     traceIfFalse "[Plutus Error]: sale price must be zero in this phase" (salePrice == 0) &&
-    --     traceIfFalse "[Plutus Error]: current price must be less than or equal max price" (currentPrice <= maxPrice)
-
-    --   Nothing -> traceError "[Plutus Error]: output datum must not be empty"
+validateBurn :: ScriptContext -> Bool
+validateBurn ctx = True
 
 policy :: () -> Scripts.MintingPolicy
 policy params = PlutusV2.mkMintingPolicyScript $
