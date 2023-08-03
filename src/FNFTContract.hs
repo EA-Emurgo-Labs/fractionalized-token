@@ -57,6 +57,7 @@ will interact with the FNFT Contract to withdraw.
 + SELL: the user change new price for asset
 + BUY_PARTIAL: the user can buy a part of the order
 -}
+
 data RedeemerParams
   = BUY
   | WITHDRAW

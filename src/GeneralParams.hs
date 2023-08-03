@@ -20,6 +20,7 @@ module GeneralParams
 where
 
 import           Plutus.Script.Utils.Value (AssetClass)
+import qualified Plutus.Script.Utils.Value as Value
 import qualified Plutus.V2.Ledger.Api      as PlutusV2
 import qualified PlutusTx
 import           PlutusTx.Prelude          as P hiding (Semigroup (..), unless,
@@ -42,3 +43,13 @@ data AssetDatumParams = AssetDatumParams
 
 PlutusTx.makeLift ''AssetDatumParams
 PlutusTx.makeIsDataIndexed ''AssetDatumParams [('AssetDatumParams,0)]
+
+data FNFTDatum = FNFTDatum
+  { fractionAC       :: !Value.AssetClass,
+    emittedFractions :: !Integer
+  }
+  deriving (Show)
+
+PlutusTx.makeLift ''FNFTDatum
+PlutusTx.makeIsDataIndexed ''FNFTDatum [('FNFTDatum,0)]
+
