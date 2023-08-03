@@ -1,4 +1,4 @@
-# token-marketplace
+# fractionalized-nft
 ## Simple marketplace business
 There are four cases will happen on market place:
 + BUY: user will make a request to buy the asset on our system, then the user

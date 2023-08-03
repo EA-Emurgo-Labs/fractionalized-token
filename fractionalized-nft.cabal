@@ -1,5 +1,5 @@
 Cabal-Version:      2.4
-Name:               token-marketplace
+Name:               fractionalized-nft
 Version:            0.1.0.0
 Author:             Cong Le
 Maintainer:         congle@blockchainlabs.asia
@@ -63,9 +63,9 @@ executable marketplace-contract
     , text
     , serialise
     , aeson
-    , token-marketplace
+    , fractionalized-nft
 
-executable token-marketplace-parameterized
+executable fractionalized-nft-parameterized
   main-is:            ParameterizedApp.hs
   hs-source-dirs:     app
   default-language:   Haskell2010
@@ -92,7 +92,7 @@ executable token-marketplace-parameterized
     , text
     , serialise
     , aeson
-    , token-marketplace
+    , fractionalized-nft
 
 
 test-suite test
@@ -122,7 +122,7 @@ test-suite test
       , text
       , serialise
       , aeson
-      , token-marketplace
+      , fractionalized-nft
       , tasty
       , tasty-quickcheck
       , plutus-simple-model
