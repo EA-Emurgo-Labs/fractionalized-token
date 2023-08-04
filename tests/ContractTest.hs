@@ -1,99 +1,90 @@
--- {-# LANGUAGE DataKinds          #-}
--- {-# LANGUAGE FlexibleInstances  #-}
--- {-# LANGUAGE NoImplicitPrelude  #-}
+{-# LANGUAGE DataKinds          #-}
+{-# LANGUAGE FlexibleInstances  #-}
+{-# LANGUAGE NoImplicitPrelude  #-}
 
--- {-# OPTIONS_GHC -Wno-orphans #-}
--- {-# OPTIONS_GHC -Wno-unused-imports #-}
--- {-# LANGUAGE NumericUnderscores #-}
--- {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
--- {-# HLINT ignore "Redundant bracket" #-}
--- {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
+{-# LANGUAGE NumericUnderscores #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Redundant bracket" #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
--- module Main where
+module Main where
 
--- import           Data.ByteString           (count)
--- import qualified Data.ByteString.Char8     as BS8
--- import           Data.Maybe                (fromJust)
--- import           Data.String
--- import           GeneralParams
--- import qualified GeneralParams
--- import           GHC.Num                   ((*))
--- import           MarketplaceContract       as Marketplace
--- import qualified MarketplaceContract       as Marketplace
--- import           Plutus.Model
--- import           Plutus.Script.Utils.Value
--- import           Plutus.V2.Ledger.Api
--- import           PlutusTx.Builtins
--- import           PlutusTx.Prelude          (Bool (..), Eq ((==)), Ord ((>)),
---                                             find, isJust, length, return, ($),
---                                             (-), (.))
--- import           Prelude                   (Bool (True), IO,
---                                             Maybe (Just, Nothing),
---                                             Monad (return), Semigroup ((<>)),
---                                             head, last, mconcat, not, pure,
---                                             tail, (&&), (<$>))
--- import           System.IO                 (IO)
--- import           Test.QuickCheck           (Arbitrary (arbitrary), Property,
---                                             Testable (property), choose, (==>))
--- import           Test.QuickCheck.Monadic   (assert, monadic, run)
--- import           Test.Tasty                (defaultMain, testGroup)
--- import           Test.Tasty.QuickCheck     as QC (testProperty)
--- import           Wallet                    (payToPaymentPublicKeyHash)
+import           Data.ByteString           (count)
+import qualified Data.ByteString.Char8     as BS8
+import           Data.Maybe                (fromJust)
+import           Data.String
+import           GeneralParams
+import qualified GeneralParams
+import           GHC.Num                   ((*))
+import           Plutus.Model
+import           Plutus.Script.Utils.Value
+import           Plutus.V2.Ledger.Api
+import           PlutusTx.Builtins
+import           PlutusTx.Prelude          (Bool (..), Eq ((==)), Ord ((>)),
+                                            find, isJust, length, return, ($),
+                                            (-), (.))
+import           Prelude                   (Bool (True), IO,
+                                            Maybe (Just, Nothing),
+                                            Monad (return), Semigroup ((<>)),
+                                            head, last, mconcat, not, pure,
+                                            tail, (&&), (<$>))
+import           System.IO                 (IO)
+import           Test.QuickCheck           (Arbitrary (arbitrary), Property,
+                                            Testable (property), choose, (==>))
+import           Test.QuickCheck.Monadic   (assert, monadic, run)
+import           Test.Tasty                (defaultMain, testGroup)
+import           Test.Tasty.QuickCheck     as QC (testProperty)
+import           Wallet                    (payToPaymentPublicKeyHash)
 
--- ---------------------------------------------------------------------------------------------------
--- --------------------------------------- TESTING MAIN ----------------------------------------------
+---------------------------------------------------------------------------------------------------
+--------------------------------------- TESTING MAIN ----------------------------------------------
 
--- -- | Test the validator script
--- main :: IO ()
--- main = defaultMain $
---     testGroup
---   "Testing script properties"
---   [
---     testGroup "Market place contract"
---       [ testProperty "Check buy partial asset " prop_buy_partial_asset
---       , testProperty "Check buy asset " prop_buy_asset
---       , testProperty "Check withdraw asset " prop_withdraw_asset
---       , testProperty "Check withdraw asset fail" prop_withdraw_asset_fail
---       , testProperty "Check cancell order" prop_cancel_asset
---       , testProperty "Check cancell order fail" prop_cancel_asset_fail
---       , testProperty "Check sell asset" prop_sell_asset
---       , testProperty "Check sell asset fail" prop_sell_asset_fail
---       ]
---   ]
+-- | Test the validator script
+main :: IO ()
+main = defaultMain $
+    testGroup
+  "Testing script properties"
+  [
+    testGroup "Fractionalized NFT contract"
+      [ testProperty "Check mint fnft " prop_mint_fnft
+      ]
+  ]
 
 -- ---------------------------------------------------------------------------------------------------
 -- -------------------------------- HELPER FUNCTIONS/INSTANCES ---------------------------------------
 
--- -- Init a new blockchain with 10,000,000 ADA and 1 Emurgo token (the operator token).
--- mock :: Mock
--- mock = initMock defaultBabbage (adaValue 10_000_000 <> emurgoValue)
+-- Init a new blockchain with 10,000,000 ADA and 1 Emurgo token (the operator token).
+mock :: Mock
+mock = initMock defaultBabbage (adaValue 10_000_000 <> emurgoValue)
 
--- instance Testable a => Testable (Run a) where
---   property rp = let (a,_) = runMock rp mock in property a
+instance Testable a => Testable (Run a) where
+  property rp = let (a,_) = runMock rp mock in property a
 
--- -- Convert from String to BuiltinByteString
--- toBuiltinByteString :: String -> BuiltinByteString
--- toBuiltinByteString = fromString
+-- Convert from String to BuiltinByteString
+toBuiltinByteString :: String -> BuiltinByteString
+toBuiltinByteString = fromString
 
--- -- Create a fake coin, it will be used to create the operator token.
--- fake :: FakeCoin
--- fake = FakeCoin $ toBuiltinByteString "Emurgo"
+-- Create a fake coin, it will be used to create the operator token.
+fake :: FakeCoin
+fake = FakeCoin $ toBuiltinByteString "Emurgo"
 
--- -- Create the operator token, this token is used to verify who is the operator, only the operator
--- -- can run the Minting Contract and Marketplace Contract.
--- emurgoToken :: AssetClass
--- emurgoToken = fakeCoin fake
+-- Create the operator token, this token is used to verify who is the operator, only the operator
+-- can run the Minting Contract and Marketplace Contract.
+emurgoToken :: AssetClass
+emurgoToken = fakeCoin fake
 
--- -- Init the value for operator token (just one).
--- emurgoValue :: Value
--- emurgoValue = fakeValue fake 1000
+-- Init the value for operator token (just one).
+emurgoValue :: Value
+emurgoValue = fakeValue fake 1000
 
--- -- Set up users, including: one operator and one normal user.
--- setupUsers :: Run [PubKeyHash]
--- setupUsers = do
---   seller    <- newUser (adaValue 1000 <> emurgoValue)
---   buyer <- newUser (adaValue 1000)
---   pure [seller, buyer]
+-- Set up users, including: one operator and one normal user.
+setupUsers :: Run [PubKeyHash]
+setupUsers = do
+  seller    <- newUser (adaValue 1000 <> emurgoValue)
+  buyer <- newUser (adaValue 1000)
+  pure [seller, buyer]
 
 -- -- Create the marketpalce contract.
 -- marketplaceContract :: TypedValidator datum redeemer
@@ -102,11 +93,8 @@
 -- ---------------------------------------------------------------------------------------------------
 -- ------------------------------------- TESTING PROPERTIES ------------------------------------------
 
--- prop_buy_asset :: Integer -> Property
--- prop_buy_asset sPrice = (sPrice > 0) ==> runChecks sPrice Marketplace.BUY
-
--- prop_buy_partial_asset :: Integer -> Integer -> Property
--- prop_buy_partial_asset sPrice amount = (sPrice > 0 && amount > 0) ==> runChecks sPrice (Marketplace.BUY_PARTIAL 5)
+prop_mint_fnft :: Property
+prop_mint_fnft = runChecks
 
 -- prop_withdraw_asset :: Property
 -- prop_withdraw_asset = runChecks 0 Marketplace.WITHDRAW True
@@ -165,19 +153,19 @@
 --   ,  payToScript marketplaceContract (HashDatum newDatum) asset
 --   ]
 
--- runChecks :: Integer -> Marketplace.RedeemerParams -> Bool -> Property
--- runChecks sPrice redeem isSeller =
---   monadic property check
---   -- monadic property check
---     where
---       check = do
---         isGood <- run $ testValues sPrice redeem isSeller
---         assert isGood
+runChecks :: Property
+runChecks =
+  monadic property check
+  -- monadic property check
+    where
+      check = do
+        isGood <- run $ testValues
+        assert isGood
 
--- testValues :: Integer -> Marketplace.RedeemerParams -> Bool -> Run Bool
--- testValues sPrice redeem isSeller = do
---   [seller, buyer] <- setupUsers
-
+testValues :: Run Bool
+testValues = do
+    [seller, buyer] <- setupUsers
+    noErrors
 --   case redeem of
 --     Marketplace.BUY -> do
 --       let adaVal   = adaValue 100
