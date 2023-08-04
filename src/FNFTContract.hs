@@ -16,10 +16,9 @@
 
 module FNFTContract
   ( buildFNFTContract
-  -- , saveFNFTCode
+  , saveFNFTCode
   , validator
   , validatorHash
-  -- , RedeemerParams(..)
   ) where
 
 import           Cardano.Api.Shelley                  (PlutusScript (..),
@@ -42,6 +41,12 @@ import           PlutusTx.Prelude                     as P hiding
                                                             unless, (.))
 import           Prelude                              ((.))
 import Data.List (last)
+import System.IO (FilePath)
+import System.IO (IO)
+import Cardano.Api (writeFileTextEnvelope)
+import System.IO (print)
+import Cardano.Api
+import Prelude (putStrLn)
 
 instance Eq FNFTDatum where
   {-# INLINEABLE (==) #-}
@@ -174,46 +179,46 @@ buildFNFTContract = PlutusScriptSerialised . scriptSBS
 ------------------------------------------------- HELPER FUNCTIONS --------------------------------------------
 -- This is another version for FNFT contract, it uses dynamic params to build the parameterized contract
 -- We will apply it later
--- {-# INLINABLE wrapValidator #-}
--- wrapValidator ::
---      (PlutusTx.UnsafeFromData a)
---   => (a -> RedeemerParams -> PlutusV2.ScriptContext -> Bool) -- ^
---   -> (BuiltinData -> BuiltinData -> BuiltinData -> ())
--- wrapValidator f a b ctx =
---   check $
---   f (PlutusTx.unsafeFromBuiltinData a)
---     (PlutusTx.unsafeFromBuiltinData b)
---     (PlutusTx.unsafeFromBuiltinData ctx)
+{-# INLINABLE wrapValidator #-}
+wrapValidator ::
+     (PlutusTx.UnsafeFromData a)
+  => (a -> () -> PlutusV2.ScriptContext -> Bool) -- ^
+  -> (BuiltinData -> BuiltinData -> BuiltinData -> ())
+wrapValidator f a b ctx =
+  check $
+  f (PlutusTx.unsafeFromBuiltinData a)
+    (PlutusTx.unsafeFromBuiltinData b)
+    (PlutusTx.unsafeFromBuiltinData ctx)
 
--- {-# INLINABLE mkWrappedValidator #-}
--- mkWrappedValidator :: BuiltinData -> BuiltinData -> BuiltinData -> ()
--- mkWrappedValidator = wrapValidator $ mkValidator ()
+{-# INLINABLE mkWrappedValidator #-}
+mkWrappedValidator :: BuiltinData -> BuiltinData -> BuiltinData -> ()
+mkWrappedValidator = wrapValidator $ mkValidator ()
 
--- validatorCode ::
---      PlutusTx.CompiledCode (BuiltinData -> BuiltinData -> BuiltinData -> ())
--- validatorCode = $$(PlutusTx.compile [|| mkWrappedValidator ||])
+validatorCode ::
+     PlutusTx.CompiledCode (BuiltinData -> BuiltinData -> BuiltinData -> ())
+validatorCode = $$(PlutusTx.compile [|| mkWrappedValidator ||])
 
--- serializableToScript :: Serialise a => a -> PlutusScript PlutusScriptV2
--- serializableToScript =
---   PlutusScriptSerialised . SBS.toShort . LBS.toStrict . serialise
+serializableToScript :: Serialise a => a -> PlutusScript PlutusScriptV2
+serializableToScript =
+  PlutusScriptSerialised . SBS.toShort . LBS.toStrict . serialise
 
--- -- Serialize compiled code
--- codeToScript :: PlutusTx.CompiledCode a -> PlutusScript PlutusScriptV2
--- codeToScript = serializableToScript . PlutusV2.fromCompiledCode
+-- Serialize compiled code
+codeToScript :: PlutusTx.CompiledCode a -> PlutusScript PlutusScriptV2
+codeToScript = serializableToScript . PlutusV2.fromCompiledCode
 
--- -- Create file with Plutus script
--- writeScriptToFile :: FilePath -> PlutusScript PlutusScriptV2 -> IO ()
--- writeScriptToFile filePath plutusScript =
---   writeFileTextEnvelope filePath Nothing plutusScript >>= \case
---     Left err -> print $ displayError err
---     Right () -> putStrLn $ "Serialized plutus script to: " ++ filePath
+-- Create file with Plutus script
+writeScriptToFile :: FilePath -> PlutusScript PlutusScriptV2 -> IO ()
+writeScriptToFile filePath plutusScript =
+  writeFileTextEnvelope filePath Nothing plutusScript >>= \case
+    Left err -> print $ displayError err
+    Right () -> putStrLn $ "Serialized plutus script to: " ++ filePath
 
--- -- Create file with compiled code
--- writeCodeToFile :: FilePath -> PlutusTx.CompiledCode a -> IO ()
--- writeCodeToFile filePath = writeScriptToFile filePath . codeToScript
+-- Create file with compiled code
+writeCodeToFile :: FilePath -> PlutusTx.CompiledCode a -> IO ()
+writeCodeToFile filePath = writeScriptToFile filePath . codeToScript
 
--- saveFNFTCode :: IO ()
--- saveFNFTCode =
---   writeCodeToFile
---     "./built-contracts/FNFT-parameterized-contract.json"
---     validatorCode
+saveFNFTCode :: IO ()
+saveFNFTCode =
+  writeCodeToFile
+    "./built-contracts/FNFT-parameterized-contract.json"
+    validatorCode
