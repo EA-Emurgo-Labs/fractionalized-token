@@ -24,27 +24,49 @@ module MintingContract
 import           Cardano.Api.Shelley             (PlutusScript (..),
                                                   PlutusScriptV2, displayError,
                                                   writeFileTextEnvelope)
-import           Codec.Serialise
+import Codec.Serialise ( serialise, Serialise )
 import qualified Data.ByteString.Lazy            as BSL
 import qualified Data.ByteString.Lazy            as LBS
 import qualified Data.ByteString.Short           as BSS
 import qualified Data.ByteString.Short           as SBS
-import           GeneralParams
-import qualified GeneralParams
+import GeneralParams ( FNFTDatum(FNFTDatum), fractionTokenName )
 import qualified Ledger.Typed.Scripts            as Scripts
-import           Plutus.Script.Utils.V2.Contexts
+import Plutus.Script.Utils.V2.Contexts
+    ( findDatum,
+      TxInInfo(txInInfoOutRef),
+      TxInfo(txInfoInputs, txInfoOutputs, txInfoMint),
+      ScriptContext,
+      TxOutRef,
+      ownCurrencySymbol )
 import           Plutus.Script.Utils.V2.Scripts  (scriptCurrencySymbol)
-import           Plutus.Script.Utils.Value       (TokenName (TokenName))
 import qualified Plutus.Script.Utils.Value       as Value
 import qualified Plutus.V2.Ledger.Api            as PlutusV2
 import qualified Plutus.V2.Ledger.Contexts       as PlutusV2
 import qualified PlutusTx
-import           PlutusTx.Prelude                as P hiding (Semigroup (..),
-                                                       unless, (.))
+import PlutusTx.Prelude as P
+    ( (>>=),
+      Bool,
+      Integer,
+      Maybe(..),
+      Either(Right, Left),
+      (++),
+      check,
+      find,
+      traceError,
+      ($),
+      (&&),
+      traceIfFalse,
+      Eq((==)),
+      Ord((<), (>)),
+      BuiltinData,
+      snd,
+      (||),
+      any,
+      head,
+      fromMaybe )
 import           Prelude                         (FilePath, IO, last, print,
                                                   putStrLn, (.))
 import Plutus.V1.Ledger.Value (assetClass)
-import GeneralParams
 
 data MintingRedeemer
   = InitialMint TxOutRef
@@ -80,19 +102,9 @@ extractMintedTokens ::
 extractMintedTokens mintedSymbol txMint =
   [(tn, amt) | (cs, tn, amt) <- Value.flattenValue txMint, cs == mintedSymbol]
 
-
-
 {-# INLINABLE hasUTxO #-}
 hasUTxO :: TxOutRef -> TxInfo -> Bool
 hasUTxO utxo info = any (\i -> txInInfoOutRef i == utxo) $ txInfoInputs info
-
-{-# INLINEABLE findDatum' #-}
-findDatum' :: PlutusTx.FromData a => PlutusV2.DatumHash -> TxInfo -> a
-findDatum' datumHash info =
-  fromMaybe (traceError "datum not found") $
-  PlutusTx.fromBuiltinData .
-  PlutusV2.getDatum . fromMaybe (traceError "datum not found") $
-  findDatum datumHash info
 
 {-# INLINEABLE validateInitialMint #-}
 validateInitialMint ::TxOutRef -> ScriptContext -> Bool

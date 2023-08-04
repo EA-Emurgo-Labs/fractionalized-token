@@ -23,31 +23,25 @@ module FNFTContract
   ) where
 
 import           Cardano.Api.Shelley                  (PlutusScript (..),
-                                                       PlutusScriptV2,
-                                                       displayError,
-                                                       writeFileTextEnvelope)
+                                                       PlutusScriptV2)
 import           Codec.Serialise
 import qualified Data.ByteString.Lazy                 as LBS
 import qualified Data.ByteString.Short                as SBS
 import           GeneralParams
 import qualified Ledger.Typed.Scripts                 as Scripts
-import           Plutus.Script.Utils.V2.Contexts      (valuePaidTo)
 import qualified Plutus.Script.Utils.V2.Scripts       as PSU.V2
 import qualified Plutus.Script.Utils.V2.Typed.Scripts as PlutusV2
 import qualified Plutus.Script.Utils.Value            as Value
-import           Plutus.V1.Ledger.Address             (pubKeyHashAddress)
 import           Plutus.V1.Ledger.Value               (assetClassValueOf)
 import qualified Plutus.V2.Ledger.Api                 as PlutusV2
-import Plutus.V2.Ledger.Contexts ( txSignedBy, ownCurrencySymbol )
+import Plutus.V2.Ledger.Contexts ( ownCurrencySymbol )
 import qualified Plutus.V2.Ledger.Contexts            as PlutusV2
 import qualified PlutusTx
 import           PlutusTx.Prelude                     as P hiding
                                                             (Semigroup (..),
                                                             unless, (.))
-import           Prelude                              (FilePath, IO, Show (..),
-                                                       print, putStrLn, (.))
+import           Prelude                              ((.))
 import Data.List (last)
-import Plutus.Script.Utils.Value (assetClass)
 
 instance Eq FNFTDatum where
   {-# INLINEABLE (==) #-}
@@ -69,7 +63,6 @@ mkValidator _ inputDatum _ scriptContext
       info = PlutusV2.scriptContextTxInfo scriptContext
       txMint = PlutusV2.txInfoMint info
       forgedFractionTokens = assetClassValueOf txMint (fractionAC inputDatum)
-      valHash = PlutusV2.ownHash scriptContext
 
 
 {-# INLINEABLE validateMintingFractions #-}
