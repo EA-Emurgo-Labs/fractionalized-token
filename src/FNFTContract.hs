@@ -16,10 +16,10 @@
 
 module FNFTContract
   ( buildFNFTContract
-  , saveFNFTCode
+  -- , saveFNFTCode
   , validator
   , validatorHash
-  , RedeemerParams(..)
+  -- , RedeemerParams(..)
   ) where
 
 import           Cardano.Api.Shelley                  (PlutusScript (..),
@@ -47,268 +47,70 @@ import           PlutusTx.Prelude                     as P hiding
 import           Prelude                              (FilePath, IO, Show (..),
                                                        print, putStrLn, (.))
 
-{-
-There are four cases will happen on market place:
-+ BUY: user will make a request to buy the asset on our system, then the user
-will interact with the FNFT Contract to buy and update asset's owner.
-+ WITHDRAW: user will make a request to withdraw the asset, then the user
-will interact with the FNFT Contract to withdraw.
-+ CANCELL: the user pending trade on FNFT
-+ SELL: the user change new price for asset
-+ BUY_PARTIAL: the user can buy a part of the order
--}
-
-data RedeemerParams
-  = BUY
-  | WITHDRAW
-  | SELL
-      { newPrice :: Integer
-      }
-  | CANCELL
-  | BUY_PARTIAL
-      { amt :: Integer
-      }
-  deriving (Show)
-
-PlutusTx.makeLift ''RedeemerParams
-
-PlutusTx.makeIsDataIndexed
-  ''RedeemerParams
-  [('BUY, 0), ('WITHDRAW, 1), ('SELL, 2), ('CANCELL, 3), ('BUY_PARTIAL, 4)]
+instance Eq FNFTDatum where
+  {-# INLINEABLE (==) #-}
+  FNFTDatum fractionAC emittedFractions ==
+    FNFTDatum fractionAC' emittedFractions' =
+      (fractionAC == fractionAC') &&
+      (emittedFractions == emittedFractions')
 
 -- This is the validator function of FNFT Contract
 {-# INLINABLE mkValidator #-}
 mkValidator ::
-     () -> AssetDatumParams -> RedeemerParams -> PlutusV2.ScriptContext -> Bool
-mkValidator _ dParams rParams scriptContext =
-  traceIfFalse
-    "[Plutus Error]: cannot find the asset in input"
-    (not (Value.isAdaOnlyValue theAssetInInput)) &&
-  case rParams of
-    BUY ->
-      traceIfFalse "[Plutus Error]: this asset is not enough" checkAssetInInput &&
-      traceIfFalse
-        "[Plutus Error]: this asset is not for sale"
-        (salePrice dParams > 0) &&
-      traceIfFalse
-        "[Plutus Error]: the asset in output must be sent to the FNFT Contract address only"
-        checkAssetInOutput &&
-      traceIfFalse
-        "[Plutus Error]: output datum (buy) is not correct"
-        (checkBuyerTxOutHasAsset (assetAmount dParams)) &&
-      traceIfFalse
-        "[Plutus Error]: Seller not paid"
-        (assetClassValueOf
-           (valuePaidTo info (pubKeyHashAddress (owner dParams)))
-           adaAsset >=
-         salePrice dParams * assetAmount dParams)
-    BUY_PARTIAL amountBuy ->
-      traceIfFalse "[Plutus Error]: this asset is not enough" checkAssetInInput &&
-      traceIfFalse
-        "[Plutus Error]: this asset is not for sale"
-        (salePrice dParams > 0) &&
-      traceIfFalse
-        "[Plutus Error]: amount for buy has to smaller total"
-        (amountBuy <= assetAmount dParams) &&
-      traceIfFalse
-        "[Plutus Error]: the asset in output must be sent to the FNFT Contract address only"
-        checkAssetInOutput &&
-      traceIfFalse
-        "[Plutus Error]: output datum (buy) is not correct"
-        (if amountBuy == assetAmount dParams
-           then checkBuyerTxOutHasAsset amountBuy
-           else checkBuyerTxOutHasAsset amountBuy &&
-                checkChangeTxOutHasAsset (assetAmount dParams - amountBuy)) &&
-      traceIfFalse
-        "[Plutus Error]: Seller not paid"
-        (assetClassValueOf
-           (valuePaidTo info (pubKeyHashAddress (owner dParams)))
-           adaAsset >=
-         salePrice dParams * amountBuy)
-    SELL newPrice ->
-      traceIfFalse "[Plutus Error]: this asset is not enough" checkAssetInInput &&
-      traceIfFalse
-        "[Plutus Error]: owner is not correct"
-        (txSignedBy info $ owner dParams) &&
-      traceIfFalse
-        "[Plutus Error]: the asset in output must be sent to the FNFT Contract address only"
-        checkAssetInOutput &&
-      traceIfFalse
-        "[Plutus Error]: output datum is not correct"
-        (checkOutputDatumSell newPrice $
-         parseOutputDatumInTxOut getTxOutHasAsset)
-    CANCELL ->
-      traceIfFalse "[Plutus Error]: this asset is not enough" checkAssetInInput &&
-      traceIfFalse
-        "[Plutus Error]: owner is not correct"
-        (txSignedBy info $ owner dParams) &&
-      traceIfFalse
-        "[Plutus Error]: the asset in output must be sent to the FNFT Contract address only"
-        checkAssetInOutput &&
-      traceIfFalse
-        "[Plutus Error]: output datum is not correct"
-        (checkOutputDatumCancell $ parseOutputDatumInTxOut getTxOutHasAsset)
-    WITHDRAW ->
-      traceIfFalse
-        "[Plutus Error]: owner is not correct"
-        (txSignedBy info $ owner dParams)
-    _ -> False
-    -- Get all info about the transaction
-  where
-    info :: PlutusV2.TxInfo
-    info = PlutusV2.scriptContextTxInfo scriptContext
-    adaAsset :: Value.AssetClass
-    adaAsset = Value.AssetClass (PlutusV2.adaSymbol, PlutusV2.adaToken)
-    -- Get all script outputs
-    allTxOut :: [PlutusV2.TxOut]
-    allTxOut = PlutusV2.getContinuingOutputs scriptContext
-    mainInput :: PlutusV2.TxOut
-    mainInput =
-      case PlutusV2.findOwnInput scriptContext of
-        Nothing ->
-          traceError
-            "[Plutus Error]: cannot find the input associated with the FNFT Contract address"
-        Just i -> PlutusV2.txInInfoResolved i
-    -- Get the FNFT Contract address associated with the asset in input
-    -- contractAddress :: PlutusV2.Address
-    -- contractAddress = PlutusV2.txOutAddress mainInput
-    -- Get the value of the Asset
-    theAssetInInput :: PlutusV2.Value
-    theAssetInInput = PlutusV2.txOutValue mainInput
-    checkAssetInInput :: Bool
-    checkAssetInInput =
-      let (currencySymbol, tokenName) = Value.unAssetClass (assetClass dParams)
-          val = Value.currencyValueOf theAssetInInput currencySymbol
-          [(_, tn, amt)] = Value.flattenValue val
-       in amt == assetAmount dParams && tokenName == tn
-    {-
-    This function is to check which address that the asset has been sent to in outputs
-    In case of buying and reselling, the asset must be sent to the FNFT Contract address only.
-    -}
-    checkAssetInOutput :: Bool
-    checkAssetInOutput =
-      case find
-             (\x ->
-                Value.symbols (PlutusV2.txOutValue x) ==
-                Value.symbols theAssetInInput)
-             allTxOut of
-        Nothing -> False
-        Just _  -> True
-    {-
-    This function will check whether the asset is in the outputs or not.
-    If yes, the txout will be used to parse and check whether the output datum is correct or not.
-    -}
-    getTxOutHasAsset :: PlutusV2.TxOut
-    getTxOutHasAsset =
-      case find
-             (\x ->
-                Value.symbols (PlutusV2.txOutValue x) ==
-                Value.symbols theAssetInInput)
-             allTxOut of
-        Nothing -> traceError "[Plutus Error]: cannot find the asset in output"
-        Just i -> i
-    checkBuyerTxOutHasAsset :: Integer -> Bool
-    checkBuyerTxOutHasAsset amount =
-      case find
-             (\x ->
-                Value.symbols (PlutusV2.txOutValue x) ==
-                Value.symbols theAssetInInput &&
-                checkOutputDatumBuyPartial amount (parseOutputDatumInTxOut x))
-             allTxOut of
-        Nothing ->
-          traceIfFalse "[Plutus Error]: cannot find the asset in output" False
-        Just _ -> True
-    checkChangeTxOutHasAsset :: Integer -> Bool
-    checkChangeTxOutHasAsset amount =
-      case find
-             (\x ->
-                Value.symbols (PlutusV2.txOutValue x) ==
-                Value.symbols theAssetInInput &&
-                checkOutputDatumBuyChangePartial
-                  amount
-                  (parseOutputDatumInTxOut x))
-             allTxOut of
-        Nothing ->
-          traceIfFalse "[Plutus Error]: cannot find the asset in output" False
-        Just _ -> True
-    -- Parse output datum to the AssetDatumParams format
-    parseOutputDatumInTxOut :: PlutusV2.TxOut -> Maybe AssetDatumParams
-    parseOutputDatumInTxOut txout =
-      case PlutusV2.txOutDatum txout of
-        PlutusV2.NoOutputDatum -> Nothing
-        PlutusV2.OutputDatum od ->
-          PlutusTx.fromBuiltinData $ PlutusV2.getDatum od
-        PlutusV2.OutputDatumHash odh ->
-          case PlutusV2.findDatum odh info of
-            Just od -> PlutusTx.fromBuiltinData $ PlutusV2.getDatum od
-            Nothing -> Nothing
-    -- Check output datum in case of buying the asset on market place
-    checkOutputDatumBuyPartial :: Integer -> Maybe AssetDatumParams -> Bool
-    checkOutputDatumBuyPartial amountBuy outputDatum =
-      case outputDatum of
-        Just (AssetDatumParams newOwner salePrice' ast asamt) ->
-          traceIfFalse
-            "[Plutus Error]: new owner must not be empty and must be different with the old one"
-            (PlutusV2.getPubKeyHash newOwner /= "" && newOwner /= owner dParams) &&
-          traceIfFalse
-            "[Plutus Error]: asset info must not change"
-            (ast == assetClass dParams && asamt == amountBuy) &&
-          traceIfFalse
-            "[Plutus Error]: sale price has to equal zero"
-            (salePrice' == 0)
-        Nothing -> traceError "[Plutus Error]: output datum must not be empty"
-      -- Check output datum in case of buying the asset on market place
-    checkOutputDatumBuyChangePartial ::
-         Integer -> Maybe AssetDatumParams -> Bool
-    checkOutputDatumBuyChangePartial amountBuy outputDatum =
-      case outputDatum of
-        Just (AssetDatumParams oldOwner salePrice' ast asamt) ->
-          traceIfFalse
-            "[Plutus Error]: new owner must not be empty and must be different with the old one"
-            (oldOwner == owner dParams) &&
-          traceIfFalse
-            "[Plutus Error]: asset info must not change"
-            (ast == assetClass dParams && asamt == amountBuy) &&
-          traceIfFalse
-            "[Plutus Error]: sale price has to no change"
-            (salePrice' == salePrice dParams)
-        Nothing -> traceError "[Plutus Error]: output datum must not be empty"
-    -- Check output datum in case of sell the asset on market place
-    checkOutputDatumSell :: Integer -> Maybe AssetDatumParams -> Bool
-    checkOutputDatumSell newPrice outputDatum =
-      case outputDatum of
-        Just (AssetDatumParams owner' newPrice' ast asamt) ->
-          traceIfFalse
-            "[Plutus Error]: owner must not be the same"
-            (owner' == owner dParams) &&
-          traceIfFalse
-            "[Plutus Error]: this asset is not for sale"
-            (newPrice == newPrice' && newPrice > 0) &&
-          traceIfFalse
-            "[Plutus Error]: asset info must not change"
-            (ast == assetClass dParams && asamt == assetAmount dParams)
-        Nothing -> traceError "[Plutus Error]: output datum must not be empty"
-    -- Check output datum in case of sell the asset on market place
-    checkOutputDatumCancell :: Maybe AssetDatumParams -> Bool
-    checkOutputDatumCancell outputDatum =
-      case outputDatum of
-        Just (AssetDatumParams owner' newPrice ast asamt) ->
-          traceIfFalse
-            "[Plutus Error]: owner must not be the same"
-            (owner' == owner dParams) &&
-          traceIfFalse
-            "[Plutus Error]: this asset is not for sale"
-            (newPrice == 0) &&
-          traceIfFalse
-            "[Plutus Error]: asset info must not change"
-            (ast == assetClass dParams && asamt == assetAmount dParams)
-        Nothing -> traceError "[Plutus Error]: output datum must not be empty"
+     () -> FNFTDatum -> () -> PlutusV2.ScriptContext -> Bool
+mkValidator _ inputDatum _ scriptContext 
+  | forgedFractionTokens > 0 = validateMintingFractions inputDatum scriptContext valHash
+  | forgedFractionTokens < 0 = validateReturningAndBurning inputDatum scriptContext valHash
+  | otherwise                = False
+    where
+      info :: PlutusV2.TxInfo
+      info = PlutusV2.scriptContextTxInfo scriptContext
+      txMint = PlutusV2.txInfoMint info
+      forgedFractionTokens = assetClassValueOf txMint (fractionAC inputDatum)
+      valHash = PlutusV2.ownHash scriptContext
+
+
+{-# INLINEABLE validateMintingFractions #-}
+validateMintingFractions :: FNFTDatum -> PlutusV2.ScriptContext -> PlutusV2.ValidatorHash -> Bool
+validateMintingFractions fntDatum scriptContext valHash = True
+  -- let (oldFracadaValue, _inputDatumHash) = findSingleScriptOutput valHash txInputs
+  --     (newFracadaValue, outputDatumHash) = findSingleScriptOutput valHash txOutputs
+  --     forgedFractionTokens = assetClassValueOf txMint fractionAC
+  --     noAdaValuePreserved = noAdaValue newFracadaValue == noAdaValue oldFracadaValue
+  --     FracadaDatum {fractionAC = fractionAC', emittedFractions = emittedFractions', authorizedPubKeys = authorizedPubKeys', minSigRequired = minSigRequired'} = findDatum' outputDatumHash info
+
+  --     datumUpdated = fractionAC' == fractionAC &&
+  --       authorizedPubKeys' == authorizedPubKeys &&
+  --       minSigRequired' == minSigRequired &&
+  --       emittedFractions' == (emittedFractions + forgedFractionTokens)
+
+  --     scriptCount = checkScriptIOCounts valHash 1 1 sctx
+  -- in debugIfFalse "Not enough signatures for minting" (validateSignatures authorizedPubKeys minSigRequired info)
+  --       && debugIfFalse "Contract value not preserved" noAdaValuePreserved
+  --       && debugIfFalse "Datum not updated forging tokens" datumUpdated
+  --       && debugIfFalse "Script counts incorrect" scriptCount
+
+{-# INLINEABLE validateReturningAndBurning #-}
+validateReturningAndBurning :: FNFTDatum -> PlutusV2.ScriptContext -> PlutusV2.ValidatorHash -> Bool
+validateReturningAndBurning fntDatum scriptContext valHash = True
+-- FracadaDatum {fractionAC, emittedFractions} sctx@StandardContext {txMint} valHash =
+--   let forgedFractionTokens = assetClassValueOf txMint fractionAC
+--       validityTokenAC = getValidityTokenAC fractionAC
+
+--       fractionTokensBurnt = (forgedFractionTokens == negate emittedFractions)
+--       validityTokenBurned = checkSingleTokenIsBurned validityTokenAC txMint
+--       scriptCount = checkScriptIOCounts valHash 1 0 sctx
+--   in debugIfFalse "Fraction tokens not burned" fractionTokensBurnt
+--         && debugIfFalse "Validity token not burned" validityTokenBurned
+--         && debugIfFalse "Script counts incorrect" scriptCount
+
+
 
 data ContractType
 
 instance Scripts.ValidatorTypes ContractType where
-  type DatumType ContractType = AssetDatumParams
-  type RedeemerType ContractType = RedeemerParams
+  type DatumType ContractType = FNFTDatum
+  type RedeemerType ContractType = ()
 
 typedFNFTValidator :: () -> PlutusV2.TypedValidator ContractType
 typedFNFTValidator = PlutusV2.mkTypedValidatorParam @ContractType
@@ -336,46 +138,46 @@ buildFNFTContract = PlutusScriptSerialised . scriptSBS
 ------------------------------------------------- HELPER FUNCTIONS --------------------------------------------
 -- This is another version for FNFT contract, it uses dynamic params to build the parameterized contract
 -- We will apply it later
-{-# INLINABLE wrapValidator #-}
-wrapValidator ::
-     (PlutusTx.UnsafeFromData a)
-  => (a -> RedeemerParams -> PlutusV2.ScriptContext -> Bool) -- ^
-  -> (BuiltinData -> BuiltinData -> BuiltinData -> ())
-wrapValidator f a b ctx =
-  check $
-  f (PlutusTx.unsafeFromBuiltinData a)
-    (PlutusTx.unsafeFromBuiltinData b)
-    (PlutusTx.unsafeFromBuiltinData ctx)
+-- {-# INLINABLE wrapValidator #-}
+-- wrapValidator ::
+--      (PlutusTx.UnsafeFromData a)
+--   => (a -> RedeemerParams -> PlutusV2.ScriptContext -> Bool) -- ^
+--   -> (BuiltinData -> BuiltinData -> BuiltinData -> ())
+-- wrapValidator f a b ctx =
+--   check $
+--   f (PlutusTx.unsafeFromBuiltinData a)
+--     (PlutusTx.unsafeFromBuiltinData b)
+--     (PlutusTx.unsafeFromBuiltinData ctx)
 
-{-# INLINABLE mkWrappedValidator #-}
-mkWrappedValidator :: BuiltinData -> BuiltinData -> BuiltinData -> ()
-mkWrappedValidator = wrapValidator $ mkValidator ()
+-- {-# INLINABLE mkWrappedValidator #-}
+-- mkWrappedValidator :: BuiltinData -> BuiltinData -> BuiltinData -> ()
+-- mkWrappedValidator = wrapValidator $ mkValidator ()
 
-validatorCode ::
-     PlutusTx.CompiledCode (BuiltinData -> BuiltinData -> BuiltinData -> ())
-validatorCode = $$(PlutusTx.compile [|| mkWrappedValidator ||])
+-- validatorCode ::
+--      PlutusTx.CompiledCode (BuiltinData -> BuiltinData -> BuiltinData -> ())
+-- validatorCode = $$(PlutusTx.compile [|| mkWrappedValidator ||])
 
-serializableToScript :: Serialise a => a -> PlutusScript PlutusScriptV2
-serializableToScript =
-  PlutusScriptSerialised . SBS.toShort . LBS.toStrict . serialise
+-- serializableToScript :: Serialise a => a -> PlutusScript PlutusScriptV2
+-- serializableToScript =
+--   PlutusScriptSerialised . SBS.toShort . LBS.toStrict . serialise
 
--- Serialize compiled code
-codeToScript :: PlutusTx.CompiledCode a -> PlutusScript PlutusScriptV2
-codeToScript = serializableToScript . PlutusV2.fromCompiledCode
+-- -- Serialize compiled code
+-- codeToScript :: PlutusTx.CompiledCode a -> PlutusScript PlutusScriptV2
+-- codeToScript = serializableToScript . PlutusV2.fromCompiledCode
 
--- Create file with Plutus script
-writeScriptToFile :: FilePath -> PlutusScript PlutusScriptV2 -> IO ()
-writeScriptToFile filePath plutusScript =
-  writeFileTextEnvelope filePath Nothing plutusScript >>= \case
-    Left err -> print $ displayError err
-    Right () -> putStrLn $ "Serialized plutus script to: " ++ filePath
+-- -- Create file with Plutus script
+-- writeScriptToFile :: FilePath -> PlutusScript PlutusScriptV2 -> IO ()
+-- writeScriptToFile filePath plutusScript =
+--   writeFileTextEnvelope filePath Nothing plutusScript >>= \case
+--     Left err -> print $ displayError err
+--     Right () -> putStrLn $ "Serialized plutus script to: " ++ filePath
 
--- Create file with compiled code
-writeCodeToFile :: FilePath -> PlutusTx.CompiledCode a -> IO ()
-writeCodeToFile filePath = writeScriptToFile filePath . codeToScript
+-- -- Create file with compiled code
+-- writeCodeToFile :: FilePath -> PlutusTx.CompiledCode a -> IO ()
+-- writeCodeToFile filePath = writeScriptToFile filePath . codeToScript
 
-saveFNFTCode :: IO ()
-saveFNFTCode =
-  writeCodeToFile
-    "./built-contracts/FNFT-parameterized-contract.json"
-    validatorCode
+-- saveFNFTCode :: IO ()
+-- saveFNFTCode =
+--   writeCodeToFile
+--     "./built-contracts/FNFT-parameterized-contract.json"
+--     validatorCode

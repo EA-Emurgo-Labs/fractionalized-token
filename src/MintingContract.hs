@@ -102,7 +102,7 @@ validateInitialMint utxo ctx =
     "Minted ammount fractions not positive"
     (fractionTokensMintedAmount > 0) &&
   traceIfFalse "UTxO used for token name isn't spent" checkUTxOSpent
-  -- && traceIfFalse "Script datum incorrectly built" checkFNFTDatum
+  && traceIfFalse "Script datum incorrectly built" (checkOutputDatum $ parseOutputDatumInTxOut getTxOutHasAsset)
   where
     info :: PlutusV2.TxInfo
     info = PlutusV2.scriptContextTxInfo ctx
@@ -144,12 +144,7 @@ validateInitialMint utxo ctx =
           traceIfFalse
             "emittedFractions incorrect" (emittedFractions == fractionTokensMintedAmount)
         Nothing -> traceError "[Plutus Error]: output datum must not be empty"
-    -- (fnftValue, fnftDatumHash) = findSingleScriptOutput vhash txOutputs
-    -- fnftDatum :: FNFTDatum = findDatum' fnftDatumHash info
-    -- checkFNFTDatum =
-    --     traceIfFalse "datum fractionAC incorrect" (fractionAC fracadaDatum == assetClass ownCS fractionTokenName)
-    --       && traceIfFalse "emittedFractions incorrect" (emittedFractions fracadaDatum == fractionTokensMintedAmount)
-
+   
 validateBurn :: ScriptContext -> Bool
 validateBurn ctx =
   traceIfFalse

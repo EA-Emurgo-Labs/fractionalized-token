@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveAnyClass        #-}
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NoImplicitPrelude     #-}
 {-# LANGUAGE OverloadedStrings     #-}
@@ -12,12 +13,13 @@
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeOperators         #-}
-{-# LANGUAGE LambdaCase            #-}
 
-import Prelude                    (IO)
-import FNFTContract
+import           FNFTContract
+import           Prelude      (IO)
+import           Text.Printf  (printf)
 
 -- This is the main function for parameterized contracts
 main :: IO ()
 main = do
-  FNFTContract.saveFNFTCode
+  printf "test"
+  -- FNFTContract.saveFNFTCode
