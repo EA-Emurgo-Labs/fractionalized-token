@@ -23,8 +23,7 @@ where
 
 import qualified Plutus.Script.Utils.Value as Value
 import qualified PlutusTx
-import           PlutusTx.Prelude          as P hiding (Semigroup (..), unless,
-                                                 (.))
+import           PlutusTx.Prelude          as P (Integer)
 import           Prelude                   (Show (..))
 
 {-
@@ -42,6 +41,8 @@ data FNFTDatum = FNFTDatum
 PlutusTx.makeLift ''FNFTDatum
 PlutusTx.makeIsDataIndexed ''FNFTDatum [('FNFTDatum,0)]
 
+fractionTokenName :: Value.TokenName
 fractionTokenName = Value.TokenName "ADA NFT A FRACTION"
 
+validityTokenName :: Value.TokenName
 validityTokenName = Value.TokenName "FNFT_VALIDITY"

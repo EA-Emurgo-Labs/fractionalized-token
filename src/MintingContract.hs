@@ -202,21 +202,11 @@ wrapPolicy f a ctx =
   f (PlutusTx.unsafeFromBuiltinData a) (PlutusTx.unsafeFromBuiltinData ctx)
 
 {-# INLINABLE mkWrappedNFTPolicy #-}
-mkWrappedNFTPolicy ::
-     BuiltinData -> BuiltinData -> BuiltinData -> BuiltinData -> ()
-mkWrappedNFTPolicy tkpl' tn' = wrapPolicy $ mkNFTPolicy ()
-  where
-    tokenPolicy :: PlutusV2.CurrencySymbol
-    tokenPolicy = PlutusTx.unsafeFromBuiltinData tkpl'
-    tn :: PlutusV2.TokenName
-    tn = PlutusTx.unsafeFromBuiltinData tn'
-    as :: Value.AssetClass
-    as = Value.AssetClass (tokenPolicy, tn)
-    -- op :: OperatorParams
-    -- op =  OperatorParams {operatorToken = as}
+mkWrappedNFTPolicy :: BuiltinData -> BuiltinData -> ()
+mkWrappedNFTPolicy = wrapPolicy $ mkNFTPolicy ()
 
 policyCode ::
-     PlutusTx.CompiledCode (BuiltinData -> BuiltinData -> BuiltinData -> BuiltinData -> ())
+     PlutusTx.CompiledCode (BuiltinData -> BuiltinData -> ())
 policyCode = $$(PlutusTx.compile [|| mkWrappedNFTPolicy ||])
 serializableToScript :: Serialise a => a -> PlutusScript PlutusScriptV2
 serializableToScript =
