@@ -171,11 +171,11 @@ validateBurn ctx =
       extractMintedAmt fractionTokenName extractedMintedTokens
 
 policy :: () -> Scripts.MintingPolicy
-policy params =
+policy () =
   PlutusV2.mkMintingPolicyScript $
     $$(PlutusTx.compile [|| wrap ||])
     `PlutusTx.applyCode`
-  PlutusTx.liftCode params
+  PlutusTx.liftCode ()
   where
     wrap params' = Scripts.mkUntypedMintingPolicy $ mkNFTPolicy params'
 
