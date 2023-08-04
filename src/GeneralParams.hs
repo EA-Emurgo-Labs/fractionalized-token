@@ -16,6 +16,8 @@
 module GeneralParams
   (
     FNFTDatum(..)
+    , fractionTokenName
+    , validityTokenName
   )
 where
 
@@ -40,3 +42,6 @@ data FNFTDatum = FNFTDatum
 PlutusTx.makeLift ''FNFTDatum
 PlutusTx.makeIsDataIndexed ''FNFTDatum [('FNFTDatum,0)]
 
+fractionTokenName = Value.TokenName "ADA NFT A FRACTION"
+
+validityTokenName = Value.TokenName "FNFT_VALIDITY"

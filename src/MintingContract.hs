@@ -44,6 +44,7 @@ import           PlutusTx.Prelude                as P hiding (Semigroup (..),
 import           Prelude                         (FilePath, IO, last, print,
                                                   putStrLn, (.))
 import Plutus.V1.Ledger.Value (assetClass)
+import GeneralParams
 
 data MintingRedeemer
   = InitialMint TxOutRef
@@ -79,9 +80,7 @@ extractMintedTokens ::
 extractMintedTokens mintedSymbol txMint =
   [(tn, amt) | (cs, tn, amt) <- Value.flattenValue txMint, cs == mintedSymbol]
 
-fractionTokenName = TokenName "ADA NFT A FRACTION"
 
-validityTokenName = TokenName "FNFT_VALIDITY"
 
 {-# INLINABLE hasUTxO #-}
 hasUTxO :: TxOutRef -> TxInfo -> Bool
