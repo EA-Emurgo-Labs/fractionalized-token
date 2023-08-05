@@ -15,9 +15,11 @@ import           Data.ByteString           (count)
 import qualified Data.ByteString.Char8     as BS8
 import           Data.Maybe                (fromJust)
 import           Data.String
+import           FNFTContract
 import           GeneralParams
-import qualified GeneralParams
 import           GHC.Num                   ((*))
+import           MintingContract           (MintingRedeemer (..))
+import qualified MintingContract
 import           Plutus.Model
 import           Plutus.Script.Utils.Value
 import           Plutus.V2.Ledger.Api
@@ -82,13 +84,20 @@ emurgoValue = fakeValue fake 1000
 -- Set up users, including: one operator and one normal user.
 setupUsers :: Run [PubKeyHash]
 setupUsers = do
-  seller    <- newUser (adaValue 1000 <> emurgoValue)
+  issuer    <- newUser (adaValue 1000 <> emurgoValue)
   buyer <- newUser (adaValue 1000)
-  pure [seller, buyer]
+  pure [issuer, buyer]
 
--- -- Create the marketpalce contract.
--- marketplaceContract :: TypedValidator datum redeemer
--- marketplaceContract = TypedValidator $ toV2 $ Marketplace.validator ()
+-- Create the marketpalce contract.
+fnftContract :: TypedValidator datum redeemer
+fnftContract = TypedValidator $ toV2 $ FNFTContract.validator ()
+
+getMintingPolicy :: MintingPolicy
+getMintingPolicy = MintingContract.policy ()
+
+-- minting contract policy's script
+policyMintingContractScript :: TypedPolicy MintingRedeemer
+policyMintingContractScript = TypedPolicy $ toV2 Main.getMintingPolicy
 
 -- ---------------------------------------------------------------------------------------------------
 -- ------------------------------------- TESTING PROPERTIES ------------------------------------------
@@ -96,62 +105,14 @@ setupUsers = do
 prop_mint_fnft :: Property
 prop_mint_fnft = runChecks
 
--- prop_withdraw_asset :: Property
--- prop_withdraw_asset = runChecks 0 Marketplace.WITHDRAW True
-
--- prop_withdraw_asset_fail :: Property
--- prop_withdraw_asset_fail = runChecks 0 Marketplace.WITHDRAW False
-
--- prop_cancel_asset :: Property
--- prop_cancel_asset = runChecks 0 Marketplace.CANCELL True
-
--- prop_cancel_asset_fail :: Property
--- prop_cancel_asset_fail = runChecks 0 Marketplace.CANCELL False
-
--- prop_sell_asset :: Integer -> Property
--- prop_sell_asset newPrice'' = (newPrice'' > 0) ==> runChecks newPrice'' (Marketplace.SELL newPrice'') True
-
--- prop_sell_asset_fail :: Integer -> Property
--- prop_sell_asset_fail newPrice'' = (newPrice'' > 0) ==> runChecks newPrice'' (Marketplace.SELL newPrice'') False
-
-
 -- ---------------------------------------------------------------------------------------------------
 -- ------------------------------------- RUNNING THE TESTS -------------------------------------------
--- sellTx :: UserSpend -> Value -> GeneralParams.AssetDatumParams -> Tx
--- sellTx usp valNFT datum = mconcat
---   [ userSpend usp
---   , payToScript marketplaceContract (HashDatum datum) valNFT
---   ]
-
--- buyTx :: TxOutRef -> UserSpend ->  Marketplace.RedeemerParams -> GeneralParams.AssetDatumParams -> GeneralParams.AssetDatumParams -> PubKeyHash -> Value -> Value -> Tx
--- buyTx ref usp redeem oldDatum newDatum theOwner sPrice asset = mconcat
---   [ userSpend usp
---   , spendScript marketplaceContract ref redeem oldDatum
---   ,  payToScript marketplaceContract (HashDatum newDatum) asset
---   , payToKey theOwner sPrice
---   ]
-
--- buyPartialTx :: TxOutRef -> UserSpend ->  Marketplace.RedeemerParams -> GeneralParams.AssetDatumParams -> GeneralParams.AssetDatumParams -> GeneralParams.AssetDatumParams -> PubKeyHash -> Value -> Value -> Tx
--- buyPartialTx ref usp redeem oldDatum newDatum newDatum2 theOwner sPrice asset = mconcat
---   [ userSpend usp
---   , spendScript marketplaceContract ref redeem oldDatum
---   ,  payToScript marketplaceContract (HashDatum newDatum) asset
---   ,  payToScript marketplaceContract (HashDatum newDatum2) asset
---   , payToKey theOwner sPrice
---   ]
-
--- withdrawTx :: TxOutRef ->  Marketplace.RedeemerParams -> GeneralParams.AssetDatumParams -> PubKeyHash -> Value -> Tx
--- withdrawTx ref redeem oldDatum theOwner asset = mconcat
---   [spendScript marketplaceContract ref redeem oldDatum
---   , payToKey theOwner asset
---   ]
-
--- cancelTx :: TxOutRef ->  Marketplace.RedeemerParams -> GeneralParams.AssetDatumParams -> GeneralParams.AssetDatumParams -> Value -> Tx
--- cancelTx ref redeem oldDatum newDatum asset = mconcat
---   [
---     spendScript marketplaceContract ref redeem oldDatum
---   ,  payToScript marketplaceContract (HashDatum newDatum) asset
---   ]
+lockTx :: UserSpend -> TxOutRef -> Value -> Value -> Value -> GeneralParams.FNFTDatum -> Tx
+lockTx usp ref valNFT fracVal validationVal datum = mconcat
+  [ userSpend usp
+  , mintValue policyMintingContractScript (InitialMint ref) (fracVal <> validationVal)
+  , payToScript fnftContract (HashDatum datum) (valNFT <> fracVal <> validationVal)
+  ]
 
 runChecks :: Property
 runChecks =
@@ -164,7 +125,24 @@ runChecks =
 
 testValues :: Run Bool
 testValues = do
-    [seller, buyer] <- setupUsers
+    [issuer, buyer] <- setupUsers
+    utxos <- utxoAt issuer
+    let nftVal  = fakeValue fake 10
+        fracTN = TokenName $ fromString "ADA NFT A FRACTION"
+        validationTN = TokenName $ fromString "FNFT_VALIDITY"
+        fracVal = singleton (MintingContract.mintingContractSymbol ()) fracTN 1000
+        [(ref, out)] = utxos
+        validationVal = singleton (MintingContract.mintingContractSymbol ()) validationTN 1
+
+    uspIssuer <- spend issuer nftVal
+    let fnftDatum = GeneralParams.FNFTDatum {
+        GeneralParams.fractionAC = assetClass (MintingContract.mintingContractSymbol ()) fracTN
+        , GeneralParams.emittedFractions = 1000
+    }
+    let tx  = lockTx uspIssuer ref nftVal fracVal  validationVal fnftDatum
+    submitTx issuer tx
+    Plutus.Model.waitUntil 50
+
     noErrors
 --   case redeem of
 --     Marketplace.BUY -> do

@@ -111,22 +111,6 @@ validateMintingFractions forgedFractionTokens fntDatum scriptContext =
             traceIfFalse
               "emittedFractions incorrect" (emittedFractions' == emittedFractions inputDatum + forgedFractionTokens')
         Nothing -> traceError "[Plutus Error]: output datum must not be empty"
-  -- let (oldFracadaValue, _inputDatumHash) = findSingleScriptOutput valHash txInputs
-  --     (newFracadaValue, outputDatumHash) = findSingleScriptOutput valHash txOutputs
-  --     forgedFractionTokens = assetClassValueOf txMint fractionAC
-  --     noAdaValuePreserved = noAdaValue newFracadaValue == noAdaValue oldFracadaValue
-  --     FracadaDatum {fractionAC = fractionAC', emittedFractions = emittedFractions', authorizedPubKeys = authorizedPubKeys', minSigRequired = minSigRequired'} = findDatum' outputDatumHash info
-
-  --     datumUpdated = fractionAC' == fractionAC &&
-  --       authorizedPubKeys' == authorizedPubKeys &&
-  --       minSigRequired' == minSigRequired &&
-  --       emittedFractions' == (emittedFractions + forgedFractionTokens)
-
-  --     scriptCount = checkScriptIOCounts valHash 1 1 sctx
-  -- in debugIfFalse "Not enough signatures for minting" (validateSignatures authorizedPubKeys minSigRequired info)
-  --       && debugIfFalse "Contract value not preserved" noAdaValuePreserved
-  --       && debugIfFalse "Datum not updated forging tokens" datumUpdated
-  --       && debugIfFalse "Script counts incorrect" scriptCount
 
 {-# INLINEABLE validateReturningAndBurning #-}
 validateReturningAndBurning :: Integer -> FNFTDatum -> PlutusV2.ScriptContext -> Bool
@@ -134,18 +118,6 @@ validateReturningAndBurning forgedFractionTokens fntDatum scriptContext =
   traceIfFalse "Fraction tokens not burned" fractionTokensBurnt
   where
       fractionTokensBurnt = forgedFractionTokens == negate (emittedFractions fntDatum)
--- FracadaDatum {fractionAC, emittedFractions} sctx@StandardContext {txMint} valHash =
---   let forgedFractionTokens = assetClassValueOf txMint fractionAC
---       validityTokenAC = getValidityTokenAC fractionAC
-
---       fractionTokensBurnt = (forgedFractionTokens == negate emittedFractions)
---       validityTokenBurned = checkSingleTokenIsBurned validityTokenAC txMint
---       scriptCount = checkScriptIOCounts valHash 1 0 sctx
---   in debugIfFalse "Fraction tokens not burned" fractionTokensBurnt
---         && debugIfFalse "Validity token not burned" validityTokenBurned
---         && debugIfFalse "Script counts incorrect" scriptCount
-
-
 
 data ContractType
 

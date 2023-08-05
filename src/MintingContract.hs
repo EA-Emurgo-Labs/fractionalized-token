@@ -19,6 +19,7 @@ module MintingContract
   , saveNFTCode
   , policy
   , mintingContractSymbol
+  , MintingRedeemer(..)
   ) where
 
 import           Cardano.Api.Shelley             (PlutusScript (..),
