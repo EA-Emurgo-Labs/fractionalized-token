@@ -25,8 +25,8 @@ import           Plutus.Script.Utils.Value
 import           Plutus.V2.Ledger.Api
 import           PlutusTx.Builtins
 import           PlutusTx.Prelude          (Bool (..), Eq ((==)), Ord ((>)),
-                                            find, isJust, length, return, ($),
-                                            (-), (.))
+                                            find, isJust, isNothing, length,
+                                            return, ($), (-), (.))
 import           Prelude                   (Bool (True), IO,
                                             Maybe (Just, Nothing),
                                             Monad (return), Semigroup ((<>)),
@@ -114,6 +114,13 @@ lockTx usp ref valNFT fracVal validationVal datum = mconcat
   , payToScript fnftContract (HashDatum datum) (valNFT <> fracVal <> validationVal)
   ]
 
+unlockTx :: PubKeyHash -> TxOutRef -> Value -> Value -> Value -> GeneralParams.FNFTDatum -> Tx
+unlockTx receiver ref valNFT fracVal validationVal datum = mconcat
+  [ spendScript fnftContract ref () datum
+  , mintValue policyMintingContractScript Burn (fracVal <> validationVal)
+  , payToKey receiver (valNFT)
+  ]
+
 runChecks :: Property
 runChecks =
   monadic property check
@@ -141,215 +148,32 @@ testValues = do
     }
     let tx  = lockTx uspIssuer ref nftVal fracVal  validationVal fnftDatum
     submitTx issuer tx
+
     Plutus.Model.waitUntil 50
 
+    let fracValBurn = singleton (MintingContract.mintingContractSymbol ()) fracTN (-1000)
+        validationValBurn = singleton (MintingContract.mintingContractSymbol ()) validationTN (-1)
+
+    let fnftDatum = GeneralParams.FNFTDatum {
+        GeneralParams.fractionAC = assetClass (MintingContract.mintingContractSymbol ()) fracTN
+        , GeneralParams.emittedFractions = 1000
+    }
+
+    burnUtxos <- utxoAt fnftContract
+    let nft = find(\x -> do
+            let (txOutRef', txOut') = x
+                value' = txOutValue txOut'
+                flatValues = flattenValue value'
+            case find(\(cs, tn, amt) -> cs == (MintingContract.mintingContractSymbol ()) ) flatValues of
+                  Nothing -> False
+                  Just _  -> True
+            ) burnUtxos
+
+    let (txOutRef, txOut) = fromJust nft
+
+    let txBurn  = unlockTx issuer txOutRef nftVal fracValBurn validationValBurn fnftDatum
+    submitTx issuer txBurn
+    Plutus.Model.waitUntil 50
     noErrors
---   case redeem of
---     Marketplace.BUY -> do
---       let adaVal   = adaValue 100
---           nftVal   = fakeValue fake 10
-
---       uspSeller <- spend seller nftVal
-
---       let oldNftDatum = GeneralParams.AssetDatumParams {
---         GeneralParams.salePrice = sPrice,
---         GeneralParams.owner = seller,
---         GeneralParams.assetClass = emurgoToken,
---         GeneralParams.assetAmount = 10
---       }
-
---       let tx  = sellTx uspSeller nftVal oldNftDatum
---       submitTx seller tx
---       Plutus.Model.waitUntil 50
-
---       let newNftDatum = GeneralParams.AssetDatumParams {
---         GeneralParams.salePrice = 0,
---         GeneralParams.owner = buyer,
---         GeneralParams.assetClass = emurgoToken,
---         GeneralParams.assetAmount = 10
---       }
-
---       utxos <- utxoAt marketplaceContract
-
---       let (cs', tn') = unAssetClass emurgoToken
---       let nft = find(\x -> do
---                 let (_', txOut') = x
---                     value' = txOutValue txOut'
---                     [(cs, tn, amt)] = flattenValue value'
---                 cs' == cs && tn == tn' && amt == 10
---               ) utxos
-
---       let (txOutRef, _) = fromJust nft
---       let redeemParam = redeem
---       uspBuyer <- spend seller adaVal
-
---       let tx2 = buyTx txOutRef uspBuyer redeemParam oldNftDatum newNftDatum seller adaVal nftVal
---       submitTx buyer tx2
---       Plutus.Model.waitUntil 50
-
---       noErrors
---     Marketplace.BUY_PARTIAL amountPartial -> do
---       let adaVal   = adaValue 50
---           nftVal   = fakeValue fake 10
---           asset    = fakeValue fake 5
-
---       uspSeller <- spend seller nftVal
-
---       let oldNftDatum = GeneralParams.AssetDatumParams {
---         GeneralParams.salePrice = 10,
---         GeneralParams.owner = seller,
---         GeneralParams.assetClass = emurgoToken,
---         GeneralParams.assetAmount = 10
---       }
-
---       let tx  = sellTx uspSeller nftVal oldNftDatum
---       submitTx seller tx
---       Plutus.Model.waitUntil 50
-
---       let newNftDatum = GeneralParams.AssetDatumParams {
---         GeneralParams.salePrice = 0,
---         GeneralParams.owner = buyer,
---         GeneralParams.assetClass = emurgoToken,
---         GeneralParams.assetAmount = 5
---       }
-
---       let newNftDatum2 = GeneralParams.AssetDatumParams {
---         GeneralParams.salePrice = 10,
---         GeneralParams.owner = seller,
---         GeneralParams.assetClass = emurgoToken,
---         GeneralParams.assetAmount = 5
---       }
-
---       utxos <- utxoAt marketplaceContract
-
---       let (cs', tn') = unAssetClass emurgoToken
---       let nft = find(\x -> do
---                 let (_', txOut') = x
---                     value' = txOutValue txOut'
---                     [(cs, tn, amt)] = flattenValue value'
---                 cs' == cs && tn == tn' && amt == 10
---               ) utxos
-
---       let (txOutRef, _) = fromJust nft
---       let redeemParam = redeem
---       uspBuyer <- spend seller adaVal
-
---       let tx2 = buyPartialTx txOutRef uspBuyer redeemParam oldNftDatum newNftDatum newNftDatum2 seller adaVal asset
---       submitTx buyer tx2
---       Plutus.Model.waitUntil 50
-
---       noErrors
-
---     Marketplace.WITHDRAW -> do
---       let nftVal   = fakeValue fake 10
-
---       uspSeller <- spend seller nftVal
-
---       let oldNftDatum = GeneralParams.AssetDatumParams {
---         GeneralParams.salePrice = sPrice,
---         GeneralParams.owner = seller,
---         GeneralParams.assetClass = emurgoToken,
---         GeneralParams.assetAmount = 10
---       }
-
---       let tx  = sellTx uspSeller nftVal oldNftDatum
---       submitTx seller tx
---       Plutus.Model.waitUntil 50
 
 
---       utxos <- utxoAt marketplaceContract
-
---       let (cs', tn') = unAssetClass emurgoToken
---       let nft = find(\x -> do
---                 let (_', txOut') = x
---                     value' = txOutValue txOut'
---                     [(cs, tn, _)] = flattenValue value'
---                 cs' == cs && tn == tn'
---               ) utxos
-
---       let (txOutRef, _) = fromJust nft
---       let redeemParam = redeem
-
---       let tx2 = withdrawTx txOutRef redeemParam oldNftDatum seller nftVal
---       if isSeller then submitTx seller tx2 else mustFail $ submitTx buyer tx2
---       Plutus.Model.waitUntil 50
---       noErrors
-
---     Marketplace.CANCELL -> do
---       let nftVal   = fakeValue fake 10
-
---       uspSeller <- spend seller nftVal
-
---       let oldNftDatum = GeneralParams.AssetDatumParams {
---         GeneralParams.salePrice = 100,
---         GeneralParams.owner = seller,
---         GeneralParams.assetClass = emurgoToken,
---         GeneralParams.assetAmount = 10
---       }
-
---       let tx  = sellTx uspSeller nftVal oldNftDatum
---       submitTx seller tx
---       Plutus.Model.waitUntil 50
-
---       let newNftDatum = GeneralParams.AssetDatumParams {
---         GeneralParams.salePrice = 0,
---         GeneralParams.owner = seller,
---         GeneralParams.assetClass = emurgoToken,
---         GeneralParams.assetAmount = 10
---       }
-
---       utxos <- utxoAt marketplaceContract
-
---       let (cs', tn') = unAssetClass emurgoToken
---       let nft = find(\x -> do
---                 let (_', txOut') = x
---                     value' = txOutValue txOut'
---                     [(cs, tn, _)] = flattenValue value'
---                 cs' == cs && tn == tn'
---               ) utxos
-
---       let (txOutRef, _) = fromJust nft
---       let redeemParam = redeem
---       let tx2 = cancelTx txOutRef redeemParam oldNftDatum newNftDatum nftVal
---       if isSeller then submitTx seller tx2 else mustFail $ submitTx buyer tx2
---       Plutus.Model.waitUntil 50
---       noErrors
---     Marketplace.SELL newPrice' -> do
---       let nftVal   = fakeValue fake 10
-
---       uspSeller <- spend seller nftVal
-
---       let oldNftDatum = GeneralParams.AssetDatumParams {
---         GeneralParams.salePrice = 100,
---         GeneralParams.owner = seller,
---         GeneralParams.assetClass = emurgoToken,
---         GeneralParams.assetAmount = 10
---       }
-
---       let tx  = sellTx uspSeller nftVal oldNftDatum
---       submitTx seller tx
---       Plutus.Model.waitUntil 50
-
---       let newNftDatum = GeneralParams.AssetDatumParams {
---         GeneralParams.salePrice = newPrice',
---         GeneralParams.owner = seller,
---         GeneralParams.assetClass = emurgoToken,
---         GeneralParams.assetAmount = 10
---       }
-
---       utxos <- utxoAt marketplaceContract
-
---       let (cs', tn') = unAssetClass emurgoToken
---       let nft = find(\x -> do
---                 let (_', txOut') = x
---                     value' = txOutValue txOut'
---                     [(cs, tn, _)] = flattenValue value'
---                 cs' == cs && tn == tn'
---               ) utxos
-
---       let (txOutRef, _) = fromJust nft
---       let redeemParam = redeem
---       let tx2 = cancelTx txOutRef redeemParam oldNftDatum newNftDatum nftVal
---       if isSeller then submitTx seller tx2 else mustFail $ submitTx buyer tx2
---       Plutus.Model.waitUntil 50
---       noErrors

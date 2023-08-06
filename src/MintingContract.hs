@@ -112,7 +112,7 @@ hasUTxO utxo info = any (\i -> txInInfoOutRef i == utxo) $ txInfoInputs info
 
 {-# INLINEABLE validateInitialMint #-}
 validateInitialMint ::TxOutRef -> ScriptContext -> Bool
-validateInitialMint utxo ctx =
+validateInitialMint utxo ctx = 
   traceIfFalse
     "Minted ammount fractions not positive"
     (fractionTokensMintedAmount > 0)
@@ -164,7 +164,7 @@ validateInitialMint utxo ctx =
         Nothing -> traceError "[Plutus Error]: output datum must not be empty"
 
 validateBurn :: ScriptContext -> Bool
-validateBurn ctx =
+validateBurn ctx = 
   traceIfFalse
     "Burned amount fractions not negative"
     (fractionTokensMintedAmount < 0)

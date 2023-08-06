@@ -13,6 +13,7 @@
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeOperators         #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module FNFTContract
   ( buildFNFTContract
@@ -21,8 +22,7 @@ module FNFTContract
   , validatorHash
   ) where
 
-import           Cardano.Api.Shelley                  (PlutusScript (..),
-                                                       PlutusScriptV2)
+import           Cardano.Api.Shelley                  (PlutusScript (..))
 import           Codec.Serialise
 import qualified Data.ByteString.Lazy                 as LBS
 import qualified Data.ByteString.Short                as SBS
@@ -30,23 +30,15 @@ import           GeneralParams
 import qualified Ledger.Typed.Scripts                 as Scripts
 import qualified Plutus.Script.Utils.V2.Scripts       as PSU.V2
 import qualified Plutus.Script.Utils.V2.Typed.Scripts as PlutusV2
-import qualified Plutus.Script.Utils.Value            as Value
 import           Plutus.V1.Ledger.Value               (assetClassValueOf)
 import qualified Plutus.V2.Ledger.Api                 as PlutusV2
-import Plutus.V2.Ledger.Contexts ( ownCurrencySymbol )
-import qualified Plutus.V2.Ledger.Contexts            as PlutusV2
 import qualified PlutusTx
 import           PlutusTx.Prelude                     as P hiding
                                                             (Semigroup (..),
                                                             unless, (.))
-import           Prelude                              ((.))
-import Data.List (last)
-import System.IO (FilePath)
-import System.IO (IO)
-import Cardano.Api (writeFileTextEnvelope)
-import System.IO (print)
+import Prelude ( (.), putStrLn )
+import System.IO ( FilePath, IO, print )
 import Cardano.Api
-import Prelude (putStrLn)
 
 instance Eq FNFTDatum where
   {-# INLINEABLE (==) #-}
@@ -60,60 +52,14 @@ instance Eq FNFTDatum where
 mkValidator ::
      () -> FNFTDatum -> () -> PlutusV2.ScriptContext -> Bool
 mkValidator _ inputDatum _ scriptContext
-  | forgedFractionTokens > 0 = False
-    -- validateMintingFractions  forgedFractionTokens inputDatum scriptContext
-  | forgedFractionTokens < 0 = False
-    -- validateReturningAndBurning forgedFractionTokens inputDatum scriptContext
+  | forgedFractionTokens < 0 =
+      validateReturningAndBurning forgedFractionTokens inputDatum scriptContext
   | otherwise                = False
     where
       info :: PlutusV2.TxInfo
       info = PlutusV2.scriptContextTxInfo scriptContext
       txMint = PlutusV2.txInfoMint info
       forgedFractionTokens = assetClassValueOf txMint (fractionAC inputDatum)
-
-
-{-# INLINEABLE validateMintingFractions #-}
-validateMintingFractions :: Integer -> FNFTDatum -> PlutusV2.ScriptContext -> Bool
-validateMintingFractions forgedFractionTokens fntDatum scriptContext =
-  traceIfFalse "Datum not updated forging tokens" (checkOutputDatum forgedFractionTokens fntDatum (parseOutputDatumInTxOut getTxOutHasAsset))
-  where
-    info :: PlutusV2.TxInfo
-    info = PlutusV2.scriptContextTxInfo scriptContext
-    txOutputs = PlutusV2.txInfoOutputs info
-    ownCS = ownCurrencySymbol scriptContext
-    getTxOutHasAsset :: PlutusV2.TxOut
-    getTxOutHasAsset =
-      last txOutputs
-      -- case find
-      --        (\x ->
-      --           head (Value.symbols (PlutusV2.txOutValue x)) == ownCS ||
-      --           last (Value.symbols (PlutusV2.txOutValue x)) == ownCS)
-      --        txOutputs of
-      --   Nothing -> traceError "[Plutus Error]: cannot find the asset in output"
-      --   Just i -> i
-
-    -- Parse output datum to the FNFTDatum format
-    parseOutputDatumInTxOut :: PlutusV2.TxOut -> Maybe FNFTDatum
-    parseOutputDatumInTxOut txout =
-      case PlutusV2.txOutDatum txout of
-        PlutusV2.NoOutputDatum -> Nothing
-        PlutusV2.OutputDatum od ->
-          PlutusTx.fromBuiltinData $ PlutusV2.getDatum od
-        PlutusV2.OutputDatumHash odh ->
-          case PlutusV2.findDatum odh info of
-            Just od -> PlutusTx.fromBuiltinData $ PlutusV2.getDatum od
-            Nothing -> Nothing
-
-    -- Check output datum in case of buying the asset on market place
-    checkOutputDatum :: Integer -> FNFTDatum -> Maybe FNFTDatum -> Bool
-    checkOutputDatum forgedFractionTokens' inputDatum outputDatum =
-      case outputDatum of
-        Just (FNFTDatum fractionAC' emittedFractions') -> False
-            -- traceIfFalse
-            --   "datum fractionAC incorrect" (fractionAC' == fractionAC inputDatum) &&
-            -- traceIfFalse
-            --   "emittedFractions incorrect" (emittedFractions' == emittedFractions inputDatum + forgedFractionTokens')
-        Nothing -> traceError "[Plutus Error]: output datum must not be empty"
 
 {-# INLINEABLE validateReturningAndBurning #-}
 validateReturningAndBurning :: Integer -> FNFTDatum -> PlutusV2.ScriptContext -> Bool
