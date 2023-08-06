@@ -30,7 +30,7 @@ import qualified Data.ByteString.Lazy            as BSL
 import qualified Data.ByteString.Lazy            as LBS
 import qualified Data.ByteString.Short           as BSS
 import qualified Data.ByteString.Short           as SBS
-import GeneralParams ( FNFTDatum(FNFTDatum), fractionTokenName, validityTokenName )
+import GeneralParams ( FNFTDatum(FNFTDatum, fractionAC), validityTokenName )
 import qualified Ledger.Typed.Scripts            as Scripts
 import Plutus.Script.Utils.V2.Contexts
     ( findDatum,
@@ -64,13 +64,15 @@ import PlutusTx.Prelude as P
       (||),
       any,
       head,
-      fromMaybe, tail )
+      fromMaybe, tail, sha2_256, consByteString )
 import           Prelude                         (FilePath, IO, print,
                                                   putStrLn, (.))
 import Plutus.V1.Ledger.Value (assetClass)
 import Prelude (Bool(..))
 import GHC.List (last)
 import PlutusTx.Prelude ((+))
+import Utility
+import Data.Maybe (fromJust)
 
 data MintingRedeemer
   = InitialMint TxOutRef
@@ -82,33 +84,11 @@ PlutusTx.makeIsDataIndexed ''MintingRedeemer [('InitialMint, 0), ('Burn, 1)]
 
 -- This is the validator function of Minting Contract
 {-# INLINABLE mkNFTPolicy #-}
-mkNFTPolicy :: () -> MintingRedeemer -> PlutusV2.ScriptContext -> Bool
-mkNFTPolicy _ redeem scriptContext =
+mkNFTPolicy :: MintingRedeemer -> PlutusV2.ScriptContext -> Bool
+mkNFTPolicy redeem scriptContext =
   case redeem of
     InitialMint utxo -> validateInitialMint utxo scriptContext
     Burn             -> validateBurn scriptContext
-
-{-# INLINEABLE extractMintedAmt #-}
-extractMintedAmt ::
-     PlutusV2.TokenName -> [(PlutusV2.TokenName, Integer)] -> Integer
-extractMintedAmt exTokenName mintedTokens =
-  let token =
-        find (\(exTokenName', _) -> exTokenName' == exTokenName) mintedTokens
-   in case token of
-        Just a -> snd a
-        _      -> traceError "Can not find any token"
-
-{-# INLINEABLE extractMintedTokens #-}
-extractMintedTokens ::
-     PlutusV2.CurrencySymbol
-  -> PlutusV2.Value
-  -> [(PlutusV2.TokenName, Integer)]
-extractMintedTokens mintedSymbol txMint =
-  [(tn, amt) | (cs, tn, amt) <- Value.flattenValue txMint, cs == mintedSymbol]
-
-{-# INLINABLE hasUTxO #-}
-hasUTxO :: TxOutRef -> TxInfo -> Bool
-hasUTxO utxo info = any (\i -> txInInfoOutRef i == utxo) $ txInfoInputs info
 
 {-# INLINEABLE validateInitialMint #-}
 validateInitialMint ::TxOutRef -> ScriptContext -> Bool
@@ -124,6 +104,7 @@ validateInitialMint utxo ctx =
     txMint = txInfoMint info
     txOutputs = txInfoOutputs info
     ownCS = ownCurrencySymbol ctx
+    fractionTokenName = PlutusV2.TokenName $ calculateFractionTokenNameHash utxo
     extractedMintedTokens = extractMintedTokens ownCS txMint
     fractionTokensMintedAmount =
       extractMintedAmt fractionTokenName extractedMintedTokens
@@ -173,27 +154,50 @@ validateBurn ctx =
     info = PlutusV2.scriptContextTxInfo ctx
     txMint = txInfoMint info
     ownCS = ownCurrencySymbol ctx
+    txInputs = getInput ownCS (txInfoInputs info)
+    inputDatum = parseOutputDatumInTxOut $ PlutusV2.txInInfoResolved $ checkInput txInputs
+
+    fractionTokenName = snd $ Value.unAssetClass $ fractionAC $ checkDatum inputDatum
     extractedMintedTokens = extractMintedTokens ownCS txMint
     fractionTokensMintedAmount =
       extractMintedAmt fractionTokenName extractedMintedTokens
 
-policy :: () -> Scripts.MintingPolicy
-policy () =
+    parseOutputDatumInTxOut :: PlutusV2.TxOut -> Maybe FNFTDatum
+    parseOutputDatumInTxOut txout =
+      case PlutusV2.txOutDatum txout of
+        PlutusV2.NoOutputDatum -> Nothing
+        PlutusV2.OutputDatum od ->
+          PlutusTx.fromBuiltinData $ PlutusV2.getDatum od
+        PlutusV2.OutputDatumHash odh ->
+          case PlutusV2.findDatum odh info of
+            Just od -> PlutusTx.fromBuiltinData $ PlutusV2.getDatum od
+            Nothing -> Nothing
+    
+    checkInput :: Maybe PlutusV2.TxInInfo -> PlutusV2.TxInInfo
+    checkInput input = case input of
+        Nothing -> traceError "Not found input"
+        Just a -> a
+    
+    checkDatum :: Maybe FNFTDatum -> FNFTDatum
+    checkDatum datum = case datum of
+        Nothing -> traceError "Can not parse datum"
+        Just a -> a
+
+policy :: Scripts.MintingPolicy
+policy =
   PlutusV2.mkMintingPolicyScript $
     $$(PlutusTx.compile [|| wrap ||])
-    `PlutusTx.applyCode`
-  PlutusTx.liftCode ()
   where
-    wrap params' = Scripts.mkUntypedMintingPolicy $ mkNFTPolicy params'
+    wrap = Scripts.mkUntypedMintingPolicy $ mkNFTPolicy
 
-script :: () -> PlutusV2.Script
-script params = PlutusV2.unMintingPolicyScript $ policy params
+script :: PlutusV2.Script
+script = PlutusV2.unMintingPolicyScript $ policy
 
-scriptSBS :: () -> SBS.ShortByteString
-scriptSBS params = SBS.toShort $ LBS.toStrict $ serialise $ script params
+scriptSBS :: SBS.ShortByteString
+scriptSBS = SBS.toShort $ LBS.toStrict $ serialise $ script
 
-mintNFT :: () -> PlutusScript PlutusScriptV2
-mintNFT params = PlutusScriptSerialised $ scriptSBS params
+mintNFT :: PlutusScript PlutusScriptV2
+mintNFT = PlutusScriptSerialised $ scriptSBS
 
 -----------------------------------------------------------------------------------------------------------
 ---------------------------------------- MINTING PARAMETERIZED CONTRACT -----------------------------------
@@ -210,7 +214,7 @@ wrapPolicy f a ctx =
 
 {-# INLINABLE mkWrappedNFTPolicy #-}
 mkWrappedNFTPolicy :: BuiltinData -> BuiltinData -> ()
-mkWrappedNFTPolicy = wrapPolicy $ mkNFTPolicy ()
+mkWrappedNFTPolicy = wrapPolicy $ mkNFTPolicy
 
 policyCode ::
      PlutusTx.CompiledCode (BuiltinData -> BuiltinData -> ())
@@ -240,5 +244,5 @@ saveNFTCode =
     "./built-contracts/minting-parameterized-contract.json"
     policyCode
 
-mintingContractSymbol :: () -> PlutusV2.CurrencySymbol
-mintingContractSymbol op = scriptCurrencySymbol $ policy op
+mintingContractSymbol :: PlutusV2.CurrencySymbol
+mintingContractSymbol = scriptCurrencySymbol $ policy
