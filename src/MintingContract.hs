@@ -1,18 +1,18 @@
-{-# LANGUAGE DataKinds             #-}
-{-# LANGUAGE DeriveAnyClass        #-}
-{-# LANGUAGE DeriveGeneric         #-}
-{-# LANGUAGE FlexibleContexts      #-}
-{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE NoImplicitPrelude     #-}
-{-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE RankNTypes            #-}
-{-# LANGUAGE RecordWildCards       #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE TemplateHaskell       #-}
-{-# LANGUAGE TypeApplications      #-}
-{-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
 
 module MintingContract
   ( mintNFT
@@ -22,57 +22,64 @@ module MintingContract
   , MintingRedeemer(..)
   ) where
 
-import           Cardano.Api.Shelley             (PlutusScript (..),
-                                                  PlutusScriptV2, displayError,
-                                                  writeFileTextEnvelope)
-import Codec.Serialise ( serialise, Serialise )
-import qualified Data.ByteString.Lazy            as BSL
-import qualified Data.ByteString.Lazy            as LBS
-import qualified Data.ByteString.Short           as BSS
-import qualified Data.ByteString.Short           as SBS
-import GeneralParams ( FNFTDatum(FNFTDatum, fractionAC), validityTokenName )
-import qualified Ledger.Typed.Scripts            as Scripts
+import Cardano.Api.Shelley
+  ( PlutusScript(..)
+  , PlutusScriptV2
+  , displayError
+  , writeFileTextEnvelope
+  )
+import Codec.Serialise (Serialise, serialise)
+import qualified Data.ByteString.Lazy as BSL
+import qualified Data.ByteString.Lazy as LBS
+import qualified Data.ByteString.Short as BSS
+import qualified Data.ByteString.Short as SBS
+import Data.Maybe (fromJust)
+import GHC.List (last)
+import GeneralParams (FNFTDatum(FNFTDatum, fractionAC), validityTokenName)
+import qualified Ledger.Typed.Scripts as Scripts
 import Plutus.Script.Utils.V2.Contexts
-    ( findDatum,
-      TxInInfo(txInInfoOutRef),
-      TxInfo(txInfoInputs, txInfoOutputs, txInfoMint),
-      ScriptContext,
-      TxOutRef,
-      ownCurrencySymbol )
-import           Plutus.Script.Utils.V2.Scripts  (scriptCurrencySymbol)
-import qualified Plutus.Script.Utils.Value       as Value
-import qualified Plutus.V2.Ledger.Api            as PlutusV2
-import qualified Plutus.V2.Ledger.Contexts       as PlutusV2
+  ( ScriptContext
+  , TxInInfo(txInInfoOutRef)
+  , TxInfo(txInfoInputs, txInfoMint, txInfoOutputs)
+  , TxOutRef
+  , findDatum
+  , ownCurrencySymbol
+  )
+import Plutus.Script.Utils.V2.Scripts (scriptCurrencySymbol)
+import qualified Plutus.Script.Utils.Value as Value
+import Plutus.V1.Ledger.Value (assetClass)
+import qualified Plutus.V2.Ledger.Api as PlutusV2
+import qualified Plutus.V2.Ledger.Contexts as PlutusV2
 import qualified PlutusTx
 import PlutusTx.Prelude as P
-    ( (>>=),
-      Bool,
-      Integer,
-      Maybe(..),
-      Either(Right, Left),
-      (++),
-      check,
-      find,
-      traceError,
-      ($),
-      (&&),
-      traceIfFalse,
-      Eq((==)),
-      Ord((<), (>)),
-      BuiltinData,
-      snd,
-      (||),
-      any,
-      head,
-      fromMaybe, tail, sha2_256, consByteString )
-import           Prelude                         (FilePath, IO, print,
-                                                  putStrLn, (.))
-import Plutus.V1.Ledger.Value (assetClass)
-import Prelude (Bool(..))
-import GHC.List (last)
+  ( Bool
+  , BuiltinData
+  , Either(Left, Right)
+  , Eq((==))
+  , Integer
+  , Maybe(..)
+  , Ord((<), (>))
+  , ($)
+  , (&&)
+  , (++)
+  , (>>=)
+  , (||)
+  , any
+  , check
+  , consByteString
+  , find
+  , fromMaybe
+  , head
+  , sha2_256
+  , snd
+  , tail
+  , traceError
+  , traceIfFalse
+  )
 import PlutusTx.Prelude ((+))
+import Prelude (FilePath, IO, (.), print, putStrLn)
+import Prelude (Bool(..))
 import Utility
-import Data.Maybe (fromJust)
 
 data MintingRedeemer
   = InitialMint TxOutRef
@@ -88,16 +95,18 @@ mkNFTPolicy :: MintingRedeemer -> PlutusV2.ScriptContext -> Bool
 mkNFTPolicy redeem scriptContext =
   case redeem of
     InitialMint utxo -> validateInitialMint utxo scriptContext
-    Burn             -> validateBurn scriptContext
+    Burn -> validateBurn scriptContext
 
 {-# INLINEABLE validateInitialMint #-}
-validateInitialMint ::TxOutRef -> ScriptContext -> Bool
-validateInitialMint utxo ctx = 
+validateInitialMint :: TxOutRef -> ScriptContext -> Bool
+validateInitialMint utxo ctx =
   traceIfFalse
     "Minted ammount fractions not positive"
-    (fractionTokensMintedAmount > 0)
-  && traceIfFalse "UTxO used for token name isn't spent" checkUTxOSpent
-  && traceIfFalse "Script datum incorrectly built" (checkOutputDatum $ parseOutputDatumInTxOut getTxOutHasAsset)
+    (fractionTokensMintedAmount > 0) &&
+  traceIfFalse "UTxO used for token name isn't spent" checkUTxOSpent &&
+  traceIfFalse
+    "Script datum incorrectly built"
+    (checkOutputDatum $ parseOutputDatumInTxOut getTxOutHasAsset)
   where
     info :: PlutusV2.TxInfo
     info = PlutusV2.scriptContextTxInfo ctx
@@ -111,14 +120,14 @@ validateInitialMint utxo ctx =
     checkUTxOSpent = hasUTxO utxo info
     getTxOutHasAsset :: PlutusV2.TxOut
     getTxOutHasAsset =
-      case find(\x -> do
-            let value' = PlutusV2.txOutValue x
-                flatValues = Value.flattenValue value'
-            case find(\(cs, tn, amt) -> cs == ownCS ) flatValues of
-              Nothing -> False
-              Just _ -> True
-          ) txOutputs of
-
+      case find
+             (\x -> do
+                let value' = PlutusV2.txOutValue x
+                    flatValues = Value.flattenValue value'
+                case find (\(cs, tn, amt) -> cs == ownCS) flatValues of
+                  Nothing -> False
+                  Just _ -> True)
+             txOutputs of
         Nothing -> traceError "[Plutus Error]: cannot find the asset in output"
         Just i -> i
     -- Parse output datum to the FNFTDatum format
@@ -132,20 +141,21 @@ validateInitialMint utxo ctx =
           case PlutusV2.findDatum odh info of
             Just od -> PlutusTx.fromBuiltinData $ PlutusV2.getDatum od
             Nothing -> Nothing
-
     -- Check output datum in case of buying the asset on market place
     checkOutputDatum :: Maybe FNFTDatum -> Bool
     checkOutputDatum outputDatum =
       case outputDatum of
         Just (FNFTDatum fractionAC emittedFractions) ->
           traceIfFalse
-            "datum fractionAC incorrect" (fractionAC == assetClass ownCS fractionTokenName) &&
+            "datum fractionAC incorrect"
+            (fractionAC == assetClass ownCS fractionTokenName) &&
           traceIfFalse
-            "emittedFractions incorrect" (emittedFractions == fractionTokensMintedAmount)
+            "emittedFractions incorrect"
+            (emittedFractions == fractionTokensMintedAmount)
         Nothing -> traceError "[Plutus Error]: output datum must not be empty"
 
 validateBurn :: ScriptContext -> Bool
-validateBurn ctx = 
+validateBurn ctx =
   traceIfFalse
     "Burned amount fractions not negative"
     (fractionTokensMintedAmount < 0)
@@ -155,13 +165,13 @@ validateBurn ctx =
     txMint = txInfoMint info
     ownCS = ownCurrencySymbol ctx
     txInputs = getInput ownCS (txInfoInputs info)
-    inputDatum = parseOutputDatumInTxOut $ PlutusV2.txInInfoResolved $ checkInput txInputs
-
-    fractionTokenName = snd $ Value.unAssetClass $ fractionAC $ checkDatum inputDatum
+    inputDatum =
+      parseOutputDatumInTxOut $ PlutusV2.txInInfoResolved $ checkInput txInputs
+    fractionTokenName =
+      snd $ Value.unAssetClass $ fractionAC $ checkDatum inputDatum
     extractedMintedTokens = extractMintedTokens ownCS txMint
     fractionTokensMintedAmount =
       extractMintedAmt fractionTokenName extractedMintedTokens
-
     parseOutputDatumInTxOut :: PlutusV2.TxOut -> Maybe FNFTDatum
     parseOutputDatumInTxOut txout =
       case PlutusV2.txOutDatum txout of
@@ -172,21 +182,20 @@ validateBurn ctx =
           case PlutusV2.findDatum odh info of
             Just od -> PlutusTx.fromBuiltinData $ PlutusV2.getDatum od
             Nothing -> Nothing
-    
     checkInput :: Maybe PlutusV2.TxInInfo -> PlutusV2.TxInInfo
-    checkInput input = case input of
+    checkInput input =
+      case input of
         Nothing -> traceError "Not found input"
         Just a -> a
-    
     checkDatum :: Maybe FNFTDatum -> FNFTDatum
-    checkDatum datum = case datum of
+    checkDatum datum =
+      case datum of
         Nothing -> traceError "Can not parse datum"
         Just a -> a
 
 policy :: Scripts.MintingPolicy
-policy =
-  PlutusV2.mkMintingPolicyScript $
-    $$(PlutusTx.compile [|| wrap ||])
+policy = PlutusV2.mkMintingPolicyScript $ 
+  $$(PlutusTx.compile [|| wrap ||])
   where
     wrap = Scripts.mkUntypedMintingPolicy $ mkNFTPolicy
 
@@ -216,9 +225,9 @@ wrapPolicy f a ctx =
 mkWrappedNFTPolicy :: BuiltinData -> BuiltinData -> ()
 mkWrappedNFTPolicy = wrapPolicy $ mkNFTPolicy
 
-policyCode ::
-     PlutusTx.CompiledCode (BuiltinData -> BuiltinData -> ())
+policyCode :: PlutusTx.CompiledCode (BuiltinData -> BuiltinData -> ())
 policyCode = $$(PlutusTx.compile [|| mkWrappedNFTPolicy ||])
+
 serializableToScript :: Serialise a => a -> PlutusScript PlutusScriptV2
 serializableToScript =
   PlutusScriptSerialised . BSS.toShort . BSL.toStrict . serialise

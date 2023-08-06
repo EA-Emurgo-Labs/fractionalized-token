@@ -22,6 +22,7 @@ module FNFTContract
   , validatorHash
   ) where
 
+import           Cardano.Api
 import           Cardano.Api.Shelley                  (PlutusScript (..))
 import           Codec.Serialise
 import qualified Data.ByteString.Lazy                 as LBS
@@ -36,37 +37,35 @@ import qualified PlutusTx
 import           PlutusTx.Prelude                     as P hiding
                                                             (Semigroup (..),
                                                             unless, (.))
-import Prelude ( (.), putStrLn )
-import System.IO ( FilePath, IO, print )
-import Cardano.Api
+import           Prelude                              (putStrLn, (.))
+import           System.IO                            (FilePath, IO, print)
 
-instance Eq FNFTDatum where
-  {-# INLINEABLE (==) #-}
-  FNFTDatum fractionAC emittedFractions ==
-    FNFTDatum fractionAC' emittedFractions' =
-      fractionAC == fractionAC' &&
-      emittedFractions == emittedFractions'
+instance Eq FNFTDatum
+  where
+  FNFTDatum fractionAC emittedFractions == FNFTDatum fractionAC' emittedFractions' =
+    fractionAC == fractionAC' && emittedFractions == emittedFractions'
 
 -- This is the validator function of FNFT Contract
 {-# INLINABLE mkValidator #-}
-mkValidator ::
-     () -> FNFTDatum -> () -> PlutusV2.ScriptContext -> Bool
+mkValidator :: () -> FNFTDatum -> () -> PlutusV2.ScriptContext -> Bool
 mkValidator _ inputDatum _ scriptContext
   | forgedFractionTokens < 0 =
-      validateReturningAndBurning forgedFractionTokens inputDatum scriptContext
-  | otherwise                = False
-    where
-      info :: PlutusV2.TxInfo
-      info = PlutusV2.scriptContextTxInfo scriptContext
-      txMint = PlutusV2.txInfoMint info
-      forgedFractionTokens = assetClassValueOf txMint (fractionAC inputDatum)
+    validateReturningAndBurning forgedFractionTokens inputDatum scriptContext
+  | otherwise = False
+  where
+    info :: PlutusV2.TxInfo
+    info = PlutusV2.scriptContextTxInfo scriptContext
+    txMint = PlutusV2.txInfoMint info
+    forgedFractionTokens = assetClassValueOf txMint (fractionAC inputDatum)
 
 {-# INLINEABLE validateReturningAndBurning #-}
-validateReturningAndBurning :: Integer -> FNFTDatum -> PlutusV2.ScriptContext -> Bool
+validateReturningAndBurning ::
+     Integer -> FNFTDatum -> PlutusV2.ScriptContext -> Bool
 validateReturningAndBurning forgedFractionTokens fntDatum scriptContext =
   traceIfFalse "Fraction tokens not burned" fractionTokensBurnt
   where
-      fractionTokensBurnt = forgedFractionTokens == negate (emittedFractions fntDatum)
+    fractionTokensBurnt =
+      forgedFractionTokens == negate (emittedFractions fntDatum)
 
 data ContractType
 

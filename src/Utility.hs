@@ -64,21 +64,27 @@ extractMintedTokens mintedSymbol txMint =
   [(tn, amt) | (cs, tn, amt) <- Value.flattenValue txMint, cs == mintedSymbol]
 
 {-# INLINABLE calculateFractionTokenNameHash #-}
-calculateFractionTokenNameHash :: PlutusV2.TxOutRef -> PlutusV2.BuiltinByteString
+calculateFractionTokenNameHash ::
+     PlutusV2.TxOutRef -> PlutusV2.BuiltinByteString
 calculateFractionTokenNameHash utxo =
-  sha2_256 (consByteString (PlutusV2.txOutRefIdx utxo) ((PlutusV2.getTxId . PlutusV2.txOutRefId) utxo))
-
+  sha2_256
+    (consByteString
+       (PlutusV2.txOutRefIdx utxo)
+       ((PlutusV2.getTxId . PlutusV2.txOutRefId) utxo))
 
 {-# INLINABLE hasUTxO #-}
 hasUTxO :: PlutusV2.TxOutRef -> PlutusV2.TxInfo -> Bool
-hasUTxO utxo info = any (\i -> PlutusV2.txInInfoOutRef i == utxo) $ PlutusV2.txInfoInputs info
+hasUTxO utxo info =
+  any (\i -> PlutusV2.txInInfoOutRef i == utxo) $ PlutusV2.txInfoInputs info
 
 {-# INLINABLE getInput #-}
-getInput :: PlutusV2.CurrencySymbol -> [PlutusV2.TxInInfo] -> Maybe PlutusV2.TxInInfo
-getInput cs' = find (\a -> do
-    let value' = PlutusV2.txOutValue (PlutusV2.txInInfoResolved a)
-        flatValues = Value.flattenValue value'
-    case find(\(cs, tn, amt) -> cs == cs' && amt == 1 ) flatValues of
-        Nothing -> False
-        Just _  -> True
-  )
+getInput ::
+     PlutusV2.CurrencySymbol -> [PlutusV2.TxInInfo] -> Maybe PlutusV2.TxInInfo
+getInput cs' =
+  find
+    (\a -> do
+       let value' = PlutusV2.txOutValue (PlutusV2.txInInfoResolved a)
+           flatValues = Value.flattenValue value'
+       case find (\(cs, tn, amt) -> cs == cs' && amt == 1) flatValues of
+         Nothing -> False
+         Just _  -> True)

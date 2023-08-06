@@ -14,11 +14,9 @@
 {-# LANGUAGE TypeOperators         #-}
 
 module GeneralParams
-  (
-    FNFTDatum(..)
-    , validityTokenName
-  )
-where
+  ( FNFTDatum(..)
+  , validityTokenName
+  ) where
 
 import qualified Plutus.Script.Utils.Value as Value
 import qualified PlutusTx
@@ -30,15 +28,16 @@ This is the datum attached with the NFT when it goes through every phase in the 
 Currently, we will manage the number of transfers, current price, max price, NFT's owner
 and the sale price (when user resell the NFT on market place).
 -}
-
-data FNFTDatum = FNFTDatum
-  { fractionAC       :: !Value.AssetClass,
-    emittedFractions :: !Integer
-  }
+data FNFTDatum =
+  FNFTDatum
+    { fractionAC       :: !Value.AssetClass
+    , emittedFractions :: !Integer
+    }
   deriving (Show)
 
 PlutusTx.makeLift ''FNFTDatum
-PlutusTx.makeIsDataIndexed ''FNFTDatum [('FNFTDatum,0)]
+
+PlutusTx.makeIsDataIndexed ''FNFTDatum [('FNFTDatum, 0)]
 
 validityTokenName :: Value.TokenName
 validityTokenName = Value.TokenName "FNFT_VALIDITY"
