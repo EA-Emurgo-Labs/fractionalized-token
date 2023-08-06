@@ -60,8 +60,10 @@ instance Eq FNFTDatum where
 mkValidator ::
      () -> FNFTDatum -> () -> PlutusV2.ScriptContext -> Bool
 mkValidator _ inputDatum _ scriptContext
-  | forgedFractionTokens > 0 = validateMintingFractions  forgedFractionTokens inputDatum scriptContext
-  | forgedFractionTokens < 0 = validateReturningAndBurning forgedFractionTokens inputDatum scriptContext
+  | forgedFractionTokens > 0 = False
+    -- validateMintingFractions  forgedFractionTokens inputDatum scriptContext
+  | forgedFractionTokens < 0 = False
+    -- validateReturningAndBurning forgedFractionTokens inputDatum scriptContext
   | otherwise                = False
     where
       info :: PlutusV2.TxInfo
@@ -81,13 +83,14 @@ validateMintingFractions forgedFractionTokens fntDatum scriptContext =
     ownCS = ownCurrencySymbol scriptContext
     getTxOutHasAsset :: PlutusV2.TxOut
     getTxOutHasAsset =
-      case find
-             (\x ->
-                head (Value.symbols (PlutusV2.txOutValue x)) == ownCS ||
-                last (Value.symbols (PlutusV2.txOutValue x)) == ownCS)
-             txOutputs of
-        Nothing -> traceError "[Plutus Error]: cannot find the asset in output"
-        Just i -> i
+      last txOutputs
+      -- case find
+      --        (\x ->
+      --           head (Value.symbols (PlutusV2.txOutValue x)) == ownCS ||
+      --           last (Value.symbols (PlutusV2.txOutValue x)) == ownCS)
+      --        txOutputs of
+      --   Nothing -> traceError "[Plutus Error]: cannot find the asset in output"
+      --   Just i -> i
 
     -- Parse output datum to the FNFTDatum format
     parseOutputDatumInTxOut :: PlutusV2.TxOut -> Maybe FNFTDatum
@@ -105,11 +108,11 @@ validateMintingFractions forgedFractionTokens fntDatum scriptContext =
     checkOutputDatum :: Integer -> FNFTDatum -> Maybe FNFTDatum -> Bool
     checkOutputDatum forgedFractionTokens' inputDatum outputDatum =
       case outputDatum of
-        Just (FNFTDatum fractionAC' emittedFractions') ->
-            traceIfFalse
-              "datum fractionAC incorrect" (fractionAC' == fractionAC inputDatum) &&
-            traceIfFalse
-              "emittedFractions incorrect" (emittedFractions' == emittedFractions inputDatum + forgedFractionTokens')
+        Just (FNFTDatum fractionAC' emittedFractions') -> False
+            -- traceIfFalse
+            --   "datum fractionAC incorrect" (fractionAC' == fractionAC inputDatum) &&
+            -- traceIfFalse
+            --   "emittedFractions incorrect" (emittedFractions' == emittedFractions inputDatum + forgedFractionTokens')
         Nothing -> traceError "[Plutus Error]: output datum must not be empty"
 
 {-# INLINEABLE validateReturningAndBurning #-}

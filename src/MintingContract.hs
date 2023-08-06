@@ -30,7 +30,7 @@ import qualified Data.ByteString.Lazy            as BSL
 import qualified Data.ByteString.Lazy            as LBS
 import qualified Data.ByteString.Short           as BSS
 import qualified Data.ByteString.Short           as SBS
-import GeneralParams ( FNFTDatum(FNFTDatum), fractionTokenName )
+import GeneralParams ( FNFTDatum(FNFTDatum), fractionTokenName, validityTokenName )
 import qualified Ledger.Typed.Scripts            as Scripts
 import Plutus.Script.Utils.V2.Contexts
     ( findDatum,
@@ -64,10 +64,13 @@ import PlutusTx.Prelude as P
       (||),
       any,
       head,
-      fromMaybe )
-import           Prelude                         (FilePath, IO, last, print,
+      fromMaybe, tail )
+import           Prelude                         (FilePath, IO, print,
                                                   putStrLn, (.))
 import Plutus.V1.Ledger.Value (assetClass)
+import Prelude (Bool(..))
+import GHC.List (last)
+import PlutusTx.Prelude ((+))
 
 data MintingRedeemer
   = InitialMint TxOutRef
@@ -112,8 +115,8 @@ validateInitialMint ::TxOutRef -> ScriptContext -> Bool
 validateInitialMint utxo ctx =
   traceIfFalse
     "Minted ammount fractions not positive"
-    (fractionTokensMintedAmount > 0) &&
-  traceIfFalse "UTxO used for token name isn't spent" checkUTxOSpent
+    (fractionTokensMintedAmount > 0)
+  && traceIfFalse "UTxO used for token name isn't spent" checkUTxOSpent
   && traceIfFalse "Script datum incorrectly built" (checkOutputDatum $ parseOutputDatumInTxOut getTxOutHasAsset)
   where
     info :: PlutusV2.TxInfo
@@ -127,11 +130,14 @@ validateInitialMint utxo ctx =
     checkUTxOSpent = hasUTxO utxo info
     getTxOutHasAsset :: PlutusV2.TxOut
     getTxOutHasAsset =
-      case find
-             (\x ->
-                head (Value.symbols (PlutusV2.txOutValue x)) == ownCS ||
-                last (Value.symbols (PlutusV2.txOutValue x)) == ownCS)
-             txOutputs of
+      case find(\x -> do
+            let value' = PlutusV2.txOutValue x
+                flatValues = Value.flattenValue value'
+            case find(\(cs, tn, amt) -> cs == ownCS ) flatValues of
+              Nothing -> False
+              Just _ -> True
+          ) txOutputs of
+
         Nothing -> traceError "[Plutus Error]: cannot find the asset in output"
         Just i -> i
     -- Parse output datum to the FNFTDatum format
@@ -156,7 +162,7 @@ validateInitialMint utxo ctx =
           traceIfFalse
             "emittedFractions incorrect" (emittedFractions == fractionTokensMintedAmount)
         Nothing -> traceError "[Plutus Error]: output datum must not be empty"
-   
+
 validateBurn :: ScriptContext -> Bool
 validateBurn ctx =
   traceIfFalse
