@@ -38,6 +38,7 @@ import           Test.QuickCheck           (Arbitrary (arbitrary), Property,
 import           Test.QuickCheck.Monadic   (assert, monadic, run)
 import           Test.Tasty                (defaultMain, testGroup)
 import           Test.Tasty.QuickCheck     as QC (testProperty)
+import           Utility
 import           Wallet                    (payToPaymentPublicKeyHash)
 
 ---------------------------------------------------------------------------------------------------
@@ -93,7 +94,7 @@ fnftContract :: TypedValidator datum redeemer
 fnftContract = TypedValidator $ toV2 $ FNFTContract.validator ()
 
 getMintingPolicy :: MintingPolicy
-getMintingPolicy = MintingContract.policy ()
+getMintingPolicy = MintingContract.policy
 
 -- minting contract policy's script
 policyMintingContractScript :: TypedPolicy MintingRedeemer
@@ -135,15 +136,15 @@ testValues = do
     [issuer, buyer] <- setupUsers
     utxos <- utxoAt issuer
     let nftVal  = fakeValue fake 10
-        fracTN = TokenName $ fromString "ADA NFT A FRACTION"
-        validationTN = TokenName $ fromString "FNFT_VALIDITY"
-        fracVal = singleton (MintingContract.mintingContractSymbol ()) fracTN 1000
         [(ref, out)] = utxos
-        validationVal = singleton (MintingContract.mintingContractSymbol ()) validationTN 1
+        fracTN = TokenName $ calculateFractionTokenNameHash ref
+        validationTN = TokenName $ fromString "FNFT_VALIDITY"
+        fracVal = singleton MintingContract.mintingContractSymbol fracTN 1000
+        validationVal = singleton MintingContract.mintingContractSymbol validationTN 1
 
     uspIssuer <- spend issuer nftVal
     let fnftDatum = GeneralParams.FNFTDatum {
-        GeneralParams.fractionAC = assetClass (MintingContract.mintingContractSymbol ()) fracTN
+        GeneralParams.fractionAC = assetClass MintingContract.mintingContractSymbol fracTN
         , GeneralParams.emittedFractions = 1000
     }
     let tx  = lockTx uspIssuer ref nftVal fracVal  validationVal fnftDatum
@@ -151,20 +152,15 @@ testValues = do
 
     Plutus.Model.waitUntil 50
 
-    let fracValBurn = singleton (MintingContract.mintingContractSymbol ()) fracTN (-1000)
-        validationValBurn = singleton (MintingContract.mintingContractSymbol ()) validationTN (-1)
-
-    let fnftDatum = GeneralParams.FNFTDatum {
-        GeneralParams.fractionAC = assetClass (MintingContract.mintingContractSymbol ()) fracTN
-        , GeneralParams.emittedFractions = 1000
-    }
+    let fracValBurn = singleton MintingContract.mintingContractSymbol fracTN (-1000)
+        validationValBurn = singleton MintingContract.mintingContractSymbol validationTN (-1)
 
     burnUtxos <- utxoAt fnftContract
     let nft = find(\x -> do
             let (txOutRef', txOut') = x
                 value' = txOutValue txOut'
                 flatValues = flattenValue value'
-            case find(\(cs, tn, amt) -> cs == (MintingContract.mintingContractSymbol ()) ) flatValues of
+            case find(\(cs, tn, amt) -> cs == MintingContract.mintingContractSymbol) flatValues of
                   Nothing -> False
                   Just _  -> True
             ) burnUtxos
