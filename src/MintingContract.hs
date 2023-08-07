@@ -116,13 +116,16 @@ validateInitialMint fnftvh utxo ctx =
     checkOutputDatum :: Maybe FNFTDatum -> Bool
     checkOutputDatum outputDatum =
       case outputDatum of
-        Just (FNFTDatum fractionAC emittedFractions) ->
+        Just (FNFTDatum fractionAC emittedFractions nftAC remainedFractions) ->
           traceIfFalse
             "[Plutus Error]: datum fractionAC incorrect"
-            (fractionAC == assetClass ownCS fractionTokenName) &&
-          traceIfFalse
+            (fractionAC == assetClass ownCS fractionTokenName) 
+          && traceIfFalse
             "[Plutus Error]: emittedFractions incorrect"
             (emittedFractions == fractionTokensMintedAmount)
+          && traceIfFalse
+            "[Plutus Error]: remainedFractions incorrect"
+            (remainedFractions == fractionTokensMintedAmount)
         Nothing -> traceError "[Plutus Error]: output datum must not be empty"
 
 validateBurn :: ScriptContext -> Bool

@@ -28,8 +28,10 @@ import           Prelude                   (Show (..))
 
 data FNFTDatum =
   FNFTDatum
-    { fractionAC       :: !Value.AssetClass
-    , emittedFractions :: !Integer
+    { fractionAC        :: !Value.AssetClass
+    , emittedFractions  :: !Integer
+    , nftAC             :: !Value.AssetClass
+    , remainedFractions :: !Integer
     }
   deriving (Show)
 
@@ -48,7 +50,7 @@ PlutusTx.makeLift ''MintingRedeemer
 PlutusTx.makeIsDataIndexed ''MintingRedeemer [('InitialMint, 0), ('Burn, 1)]
 
 data FNFTRedeemer
-  = Withdraw
+  = Withdraw Integer
   | Claim
   | Deposit
   deriving (Show)

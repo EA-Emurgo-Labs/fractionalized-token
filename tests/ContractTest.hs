@@ -16,7 +16,8 @@ import           Data.Maybe                (fromJust)
 import           Data.String
 import           FNFTContract
 import           GeneralParams
-import           GeneralParams             (FNFTRedeemer (Claim))
+import           GeneralParams             (FNFTDatum (nftAC, remainedFractions),
+                                            FNFTRedeemer (..))
 import           GHC.Num                   ((*))
 import qualified MintingContract
 import           Plutus.Model
@@ -167,6 +168,8 @@ testValues = do
           { GeneralParams.fractionAC =
               assetClass (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ()) fracTN
           , GeneralParams.emittedFractions = 1000
+          , GeneralParams.nftAC = emurgoToken
+          , GeneralParams.remainedFractions = 1000
           }
   let tx = lockTx uspIssuer ref nftVal fracVal validationVal fnftDatum
   submitTx issuer tx

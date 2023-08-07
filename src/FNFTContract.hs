@@ -39,12 +39,13 @@ import           PlutusTx.Prelude                     as P hiding
                                                             unless, (.))
 import           Prelude                              (putStrLn, (.))
 import           System.IO                            (FilePath, IO, print)
-import Utility (getValidityTokenAC)
+import Utility (getValidityTokenAC, getInput)
+import qualified Plutus.Script.Utils.Value as Value
 
 instance Eq FNFTDatum
   where
-  FNFTDatum fractionAC emittedFractions == FNFTDatum fractionAC' emittedFractions' =
-    fractionAC == fractionAC' && emittedFractions == emittedFractions'
+  FNFTDatum fractionAC emittedFractions nftAC remainedFractions == FNFTDatum fractionAC' emittedFractions' nftAC' remainedFractions' =
+    fractionAC == fractionAC' && emittedFractions == emittedFractions' && nftAC == nftAC' && remainedFractions == remainedFractions'
 
 -- This is the validator function of FNFT Contract
 {-# INLINABLE mkValidator #-}
@@ -52,22 +53,40 @@ mkValidator :: () -> FNFTDatum -> FNFTRedeemer -> PlutusV2.ScriptContext -> Bool
 mkValidator _ inputDatum redeem scriptContext =
   case redeem of
     Claim -> 
-        if forgedFractionTokens < 0 then
-          validateReturningAndBurning forgedFractionTokens inputDatum scriptContext
-        else False
+      if forgedFractionTokens < 0 then
+        validateReturningAndBurning forgedFractionTokens inputDatum scriptContext
+      else False
+    Withdraw amount -> 
+      traceIfFalse "Not enought FNFT to withdraw" (getTxOutHasValidation amount)
+
     _ -> False
   where
     info :: PlutusV2.TxInfo
     info = PlutusV2.scriptContextTxInfo scriptContext
     txMint = PlutusV2.txInfoMint info
+    ownCS = fst $ Value.unAssetClass $ fractionAC inputDatum
+    txInputs = getInput ownCS (PlutusV2.txInfoInputs info)
     forgedFractionTokens = assetClassValueOf txMint (fractionAC inputDatum)
+    getTxOutHasValidation :: Integer -> Bool
+    getTxOutHasValidation amount = 
+      do
+        let value' = PlutusV2.txOutValue $ PlutusV2.txInInfoResolved $ checkInput txInputs
+            flatValues = Value.flattenValue value'
+        case find (\(cs, tn, amt) -> cs == ownCS && amt >= amount) flatValues of
+            Nothing -> False
+            Just _  -> True
+    checkInput :: Maybe PlutusV2.TxInInfo -> PlutusV2.TxInInfo
+    checkInput input =
+      case input of
+        Nothing -> traceError "[Plutus Error]: Not found input"
+        Just a  -> a
 
 {-# INLINEABLE validateReturningAndBurning #-}
 validateReturningAndBurning ::
      Integer -> FNFTDatum -> PlutusV2.ScriptContext -> Bool
 validateReturningAndBurning forgedFractionTokens fntDatum scriptContext =
-  traceIfFalse "Fraction tokens not burned" fractionTokensBurnt
-  && traceIfFalse "Validity token not burned" validityTokenBurned
+  traceIfFalse "[Plutus Error]: Fraction tokens not burned" fractionTokensBurnt
+  && traceIfFalse "[Plutus Error]: Validity token not burned" validityTokenBurned
   where
     info :: PlutusV2.TxInfo
     info = PlutusV2.scriptContextTxInfo scriptContext
