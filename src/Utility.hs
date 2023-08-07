@@ -15,11 +15,12 @@ module Utility
   , hasUTxO
   , getInput
   , parseOutputDatumInTxOut
+  , getValidityTokenAC
   ) where
 
 import qualified Data.Aeson.Extras               as JSON
 import qualified Data.Text                       as T
-import           GeneralParams                   (FNFTDatum)
+import           GeneralParams                   (FNFTDatum, validityTokenName)
 import           Plutus.Script.Utils.V2.Contexts (findDatum)
 import qualified Plutus.Script.Utils.Value       as Value
 import qualified Plutus.V2.Ledger.Api            as PlutusV2
@@ -92,6 +93,7 @@ getInput cs' =
          Nothing -> False
          Just _  -> True)
 
+{-# INLINABLE parseOutputDatumInTxOut #-}
 parseOutputDatumInTxOut :: PlutusV2.TxInfo -> PlutusV2.TxOut -> Maybe FNFTDatum
 parseOutputDatumInTxOut info txout =
       case PlutusV2.txOutDatum txout of
@@ -102,3 +104,8 @@ parseOutputDatumInTxOut info txout =
           case findDatum odh info of
             Just od -> PlutusV2.fromBuiltinData $ PlutusV2.getDatum od
             Nothing -> Nothing
+
+{-# INLINEABLE getValidityTokenAC #-}
+getValidityTokenAC :: Value.AssetClass -> Value.AssetClass
+getValidityTokenAC fractionAC = Value.assetClass validityCS validityTokenName
+  where Value.AssetClass (validityCS, _) = fractionAC

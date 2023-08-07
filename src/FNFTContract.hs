@@ -39,6 +39,7 @@ import           PlutusTx.Prelude                     as P hiding
                                                             unless, (.))
 import           Prelude                              (putStrLn, (.))
 import           System.IO                            (FilePath, IO, print)
+import Utility (getValidityTokenAC)
 
 instance Eq FNFTDatum
   where
@@ -63,9 +64,15 @@ validateReturningAndBurning ::
      Integer -> FNFTDatum -> PlutusV2.ScriptContext -> Bool
 validateReturningAndBurning forgedFractionTokens fntDatum scriptContext =
   traceIfFalse "Fraction tokens not burned" fractionTokensBurnt
+  && traceIfFalse "Validity token not burned" validityTokenBurned
   where
+    info :: PlutusV2.TxInfo
+    info = PlutusV2.scriptContextTxInfo scriptContext
+    txMint = PlutusV2.txInfoMint info
     fractionTokensBurnt =
       forgedFractionTokens == negate (emittedFractions fntDatum)
+    validityTokenAC = getValidityTokenAC (fractionAC fntDatum)
+    validityTokenBurned = assetClassValueOf txMint validityTokenAC == -1
 
 data ContractType
 
