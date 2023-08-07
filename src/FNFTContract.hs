@@ -25,30 +25,33 @@ module FNFTContract
 import           Cardano.Api
 import           Cardano.Api.Shelley                  (PlutusScript (..))
 import           Codec.Serialise
+import           Data.Aeson                           (Value (Bool))
 import qualified Data.ByteString.Lazy                 as LBS
 import qualified Data.ByteString.Short                as SBS
 import           GeneralParams
 import qualified Ledger.Typed.Scripts                 as Scripts
+import           Plutus.Contract.Error                (AssertionError (unAssertionError))
 import qualified Plutus.Script.Utils.V2.Scripts       as PSU.V2
 import qualified Plutus.Script.Utils.V2.Typed.Scripts as PlutusV2
+import qualified Plutus.Script.Utils.Value            as Value
 import           Plutus.V1.Ledger.Value               (assetClassValueOf)
 import qualified Plutus.V2.Ledger.Api                 as PlutusV2
+import           Plutus.V2.Ledger.Contexts            (getContinuingOutputs)
 import qualified PlutusTx
 import           PlutusTx.Prelude                     as P hiding
                                                             (Semigroup (..),
                                                             unless, (.))
 import           Prelude                              (putStrLn, (.))
 import           System.IO                            (FilePath, IO, print)
-import Utility (getValidityTokenAC, getInput, parseOutputDatumInTxOut)
-import qualified Plutus.Script.Utils.Value as Value
-import Plutus.V2.Ledger.Contexts (getContinuingOutputs)
-import Data.Aeson (Value(Bool))
-import Plutus.Contract.Error (AssertionError(unAssertionError))
+import           Utility                              (getInput,
+                                                       getValidityTokenAC,
+                                                       parseOutputDatumInTxOut)
 
-instance Eq FNFTDatum
-  where
+instance Eq FNFTDatum where
   FNFTDatum fractionAC emittedFractions nftAC remainedFractions == FNFTDatum fractionAC' emittedFractions' nftAC' remainedFractions' =
-    fractionAC == fractionAC' && emittedFractions == emittedFractions' && nftAC == nftAC' && remainedFractions == remainedFractions'
+    fractionAC == fractionAC' &&
+    emittedFractions == emittedFractions' &&
+    nftAC == nftAC' && remainedFractions == remainedFractions'
 
 -- This is the validator function of FNFT Contract
 {-# INLINABLE mkValidator #-}
@@ -56,83 +59,121 @@ mkValidator :: () -> FNFTDatum -> FNFTRedeemer -> PlutusV2.ScriptContext -> Bool
 mkValidator _ inputDatum redeem scriptContext =
   case redeem of
     Claim ->
-      if forgedFractionTokens < 0 then
-        validateReturningAndBurning forgedFractionTokens inputDatum scriptContext
-      else False
+      if forgedFractionTokens < 0
+        then validateReturningAndBurning
+               forgedFractionTokens
+               inputDatum
+               scriptContext
+        else False
     Withdraw amount ->
-      traceIfFalse "[Plutus Error]: Not enought FNFT to withdraw" (remainedFractions inputDatum >= amount)
-      && traceIfFalse "[Plutus Error]: wrong datum" (checkOutputDatum True (parseOutputDatumInTxOut info getMainOutput) amount)
-      && traceIfFalse "[Plutus Error]: wrong FNFT value" (checkOutputFNFTValue True getMainOutput amount)
-      && traceIfFalse "[Plutus Error]: wrong NFT value" (checkOutputNFTValue getMainOutput)
-      && traceIfFalse "[Plutus Error]: wrong validation token value" (checkOutputValidation getMainOutput)
+      traceIfFalse
+        "[Plutus Error]: Not enought FNFT to withdraw"
+        (remainedFractions inputDatum >= amount) &&
+      traceIfFalse
+        "[Plutus Error]: wrong datum"
+        (checkOutputDatum
+           True
+           (parseOutputDatumInTxOut info getMainOutput)
+           amount) &&
+      traceIfFalse
+        "[Plutus Error]: wrong FNFT value"
+        (checkOutputFNFTValue True getMainOutput amount) &&
+      traceIfFalse
+        "[Plutus Error]: wrong NFT value"
+        (checkOutputNFTValue getMainOutput) &&
+      traceIfFalse
+        "[Plutus Error]: wrong validation token value"
+        (checkOutputValidation getMainOutput)
     Deposit amount ->
-      traceIfFalse "[Plutus Error]: wrong datum" (checkOutputDatum False (parseOutputDatumInTxOut info getMainOutput) amount)
-      && traceIfFalse "[Plutus Error]: wrong FNFT value" (checkOutputFNFTValue False getMainOutput amount)
-      && traceIfFalse "[Plutus Error]: wrong NFT value" (checkOutputNFTValue getMainOutput)
-      && traceIfFalse "[Plutus Error]: wrong validation token value" (checkOutputValidation getMainOutput)
+      traceIfFalse
+        "[Plutus Error]: wrong datum"
+        (checkOutputDatum
+           False
+           (parseOutputDatumInTxOut info getMainOutput)
+           amount) &&
+      traceIfFalse
+        "[Plutus Error]: wrong FNFT value"
+        (checkOutputFNFTValue False getMainOutput amount) &&
+      traceIfFalse
+        "[Plutus Error]: wrong NFT value"
+        (checkOutputNFTValue getMainOutput) &&
+      traceIfFalse
+        "[Plutus Error]: wrong validation token value"
+        (checkOutputValidation getMainOutput)
   where
     info :: PlutusV2.TxInfo
     info = PlutusV2.scriptContextTxInfo scriptContext
     txMint = PlutusV2.txInfoMint info
     forgedFractionTokens = assetClassValueOf txMint (fractionAC inputDatum)
-
     getMainOutput :: PlutusV2.TxOut
     getMainOutput = head (getContinuingOutputs scriptContext)
-
     checkOutputDatum :: Bool -> Maybe FNFTDatum -> Integer -> Bool
-    checkOutputDatum isWithdraw outputDatum amount=
+    checkOutputDatum isWithdraw outputDatum amount =
       case outputDatum of
         Just (FNFTDatum fractionAC' emittedFractions' nftAC' remainedFractions') ->
           traceIfFalse
             "[Plutus Error]: datum fractionAC incorrect"
-            (fractionAC' == fractionAC inputDatum)
-          && traceIfFalse
+            (fractionAC' == fractionAC inputDatum) &&
+          traceIfFalse
             "[Plutus Error]: emittedFractions incorrect"
-            (emittedFractions' == emittedFractions inputDatum)
-          && traceIfFalse
+            (emittedFractions' == emittedFractions inputDatum) &&
+          traceIfFalse
             "[Plutus Error]: remainedFractions incorrect"
-            (remainedFractions' == if isWithdraw then remainedFractions inputDatum - amount else remainedFractions inputDatum + amount)
-          && traceIfFalse
+            (remainedFractions' ==
+             if isWithdraw
+               then remainedFractions inputDatum - amount
+               else remainedFractions inputDatum + amount) &&
+          traceIfFalse
             "[Plutus Error]: nftAC incorrect"
             (nftAC' == nftAC inputDatum)
         Nothing -> traceError "[Plutus Error]: output datum must not be empty"
-
     checkOutputFNFTValue :: Bool -> PlutusV2.TxOut -> Integer -> Bool
     checkOutputFNFTValue isWithdraw txout amount = do
-              let value' = PlutusV2.txOutValue txout
-                  flatValues = Value.flattenValue value'
-                  fnftCS = fst $ Value.unAssetClass $ fractionAC inputDatum
-                  fnftTN = snd $ Value.unAssetClass $ fractionAC inputDatum
-              case find (\(cs, tn, amt) -> cs == fnftCS && tn == fnftTN && amt == if isWithdraw then remainedFractions inputDatum - amount else remainedFractions inputDatum + amount) flatValues of
-                      Nothing -> False
-                      Just _  -> True
-
+      let value' = PlutusV2.txOutValue txout
+          flatValues = Value.flattenValue value'
+          fnftCS = fst $ Value.unAssetClass $ fractionAC inputDatum
+          fnftTN = snd $ Value.unAssetClass $ fractionAC inputDatum
+      case find
+             (\(cs, tn, amt) ->
+                cs == fnftCS &&
+                tn == fnftTN &&
+                amt ==
+                if isWithdraw
+                  then remainedFractions inputDatum - amount
+                  else remainedFractions inputDatum + amount)
+             flatValues of
+        Nothing -> False
+        Just _  -> True
     checkOutputNFTValue :: PlutusV2.TxOut -> Bool
     checkOutputNFTValue txout = do
-              let value' = PlutusV2.txOutValue txout
-                  flatValues = Value.flattenValue value'
-                  nftCS = fst $ Value.unAssetClass $ nftAC inputDatum
-                  nftTN = snd $ Value.unAssetClass $ nftAC inputDatum
-              case find (\(cs, tn, amt) -> cs == nftCS && tn == nftTN && amt == 1) flatValues of
-                      Nothing -> False
-                      Just _  -> True
-
+      let value' = PlutusV2.txOutValue txout
+          flatValues = Value.flattenValue value'
+          nftCS = fst $ Value.unAssetClass $ nftAC inputDatum
+          nftTN = snd $ Value.unAssetClass $ nftAC inputDatum
+      case find
+             (\(cs, tn, amt) -> cs == nftCS && tn == nftTN && amt == 1)
+             flatValues of
+        Nothing -> False
+        Just _  -> True
     checkOutputValidation :: PlutusV2.TxOut -> Bool
     checkOutputValidation txout = do
-              let value' = PlutusV2.txOutValue txout
-                  flatValues = Value.flattenValue value'
-                  validationCS = fst $ Value.unAssetClass $ nftAC inputDatum
-                  validationTN = validityTokenName
-              case find (\(cs, tn, amt) -> cs == validationCS && tn == validationTN && amt == 1) flatValues of
-                      Nothing -> False
-                      Just _  -> True
+      let value' = PlutusV2.txOutValue txout
+          flatValues = Value.flattenValue value'
+          validationCS = fst $ Value.unAssetClass $ nftAC inputDatum
+          validationTN = validityTokenName
+      case find
+             (\(cs, tn, amt) ->
+                cs == validationCS && tn == validationTN && amt == 1)
+             flatValues of
+        Nothing -> False
+        Just _  -> True
 
 {-# INLINEABLE validateReturningAndBurning #-}
 validateReturningAndBurning ::
      Integer -> FNFTDatum -> PlutusV2.ScriptContext -> Bool
 validateReturningAndBurning forgedFractionTokens fntDatum scriptContext =
-  traceIfFalse "[Plutus Error]: Fraction tokens not burned" fractionTokensBurnt
-  && traceIfFalse "[Plutus Error]: Validity token not burned" validityTokenBurned
+  traceIfFalse "[Plutus Error]: Fraction tokens not burned" fractionTokensBurnt &&
+  traceIfFalse "[Plutus Error]: Validity token not burned" validityTokenBurned
   where
     info :: PlutusV2.TxInfo
     info = PlutusV2.scriptContextTxInfo scriptContext
