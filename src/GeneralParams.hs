@@ -52,7 +52,7 @@ PlutusTx.makeIsDataIndexed ''MintingRedeemer [('InitialMint, 0), ('Burn, 1)]
 data FNFTRedeemer
   = Withdraw Integer
   | Claim
-  | Deposit
+  | Deposit Integer
   deriving (Show)
 
 PlutusTx.makeLift ''FNFTRedeemer

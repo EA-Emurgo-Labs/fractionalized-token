@@ -112,7 +112,7 @@ validateInitialMint fnftvh utxo ctx =
              txOutputs of
         Nothing -> traceError "[Plutus Error]: cannot find the asset in output"
         Just i -> True
-    -- Check output datum in case of buying the asset on market place
+    
     checkOutputDatum :: Maybe FNFTDatum -> Bool
     checkOutputDatum outputDatum =
       case outputDatum of
