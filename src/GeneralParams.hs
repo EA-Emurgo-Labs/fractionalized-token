@@ -17,6 +17,7 @@ module GeneralParams
   ( FNFTDatum(..)
   , validityTokenName
   , MintingRedeemer(..)
+  , FNFTRedeemer(..)
   ) where
 
 import qualified Plutus.Script.Utils.Value as Value
@@ -25,11 +26,6 @@ import qualified PlutusTx
 import           PlutusTx.Prelude          as P (Integer)
 import           Prelude                   (Show (..))
 
-{-
-This is the datum attached with the NFT when it goes through every phase in the system.
-Currently, we will manage the number of transfers, current price, max price, NFT's owner
-and the sale price (when user resell the NFT on market place).
--}
 data FNFTDatum =
   FNFTDatum
     { fractionAC       :: !Value.AssetClass
@@ -38,7 +34,6 @@ data FNFTDatum =
   deriving (Show)
 
 PlutusTx.makeLift ''FNFTDatum
-
 PlutusTx.makeIsDataIndexed ''FNFTDatum [('FNFTDatum, 0)]
 
 validityTokenName :: Value.TokenName
@@ -50,5 +45,14 @@ data MintingRedeemer
   deriving (Show)
 
 PlutusTx.makeLift ''MintingRedeemer
-
 PlutusTx.makeIsDataIndexed ''MintingRedeemer [('InitialMint, 0), ('Burn, 1)]
+
+data FNFTRedeemer
+  = Withdraw
+  | Claim
+  | Deposit
+  deriving (Show)
+
+PlutusTx.makeLift ''FNFTRedeemer
+PlutusTx.makeIsDataIndexed ''FNFTRedeemer [('Withdraw, 0), ('Claim, 1), ('Deposit, 2)]
+

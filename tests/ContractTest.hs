@@ -16,6 +16,7 @@ import           Data.Maybe                (fromJust)
 import           Data.String
 import           FNFTContract
 import           GeneralParams
+import           GeneralParams             (FNFTRedeemer (Claim))
 import           GHC.Num                   ((*))
 import qualified MintingContract
 import           Plutus.Model
@@ -136,7 +137,7 @@ unlockTx ::
   -> Tx
 unlockTx receiver ref valNFT fracVal validationVal datum =
   mconcat
-    [ spendScript fnftContract ref () datum
+    [ spendScript fnftContract ref Claim datum
     , mintValue policyMintingContractScript Burn (fracVal <> validationVal)
     , payToKey receiver (valNFT)
     ]

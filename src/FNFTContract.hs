@@ -48,11 +48,14 @@ instance Eq FNFTDatum
 
 -- This is the validator function of FNFT Contract
 {-# INLINABLE mkValidator #-}
-mkValidator :: () -> FNFTDatum -> () -> PlutusV2.ScriptContext -> Bool
-mkValidator _ inputDatum _ scriptContext
-  | forgedFractionTokens < 0 =
-    validateReturningAndBurning forgedFractionTokens inputDatum scriptContext
-  | otherwise = False
+mkValidator :: () -> FNFTDatum -> FNFTRedeemer -> PlutusV2.ScriptContext -> Bool
+mkValidator _ inputDatum redeem scriptContext =
+  case redeem of
+    Claim -> 
+        if forgedFractionTokens < 0 then
+          validateReturningAndBurning forgedFractionTokens inputDatum scriptContext
+        else False
+    _ -> False
   where
     info :: PlutusV2.TxInfo
     info = PlutusV2.scriptContextTxInfo scriptContext
@@ -78,7 +81,7 @@ data ContractType
 
 instance Scripts.ValidatorTypes ContractType where
   type DatumType ContractType = FNFTDatum
-  type RedeemerType ContractType = ()
+  type RedeemerType ContractType = FNFTRedeemer
 
 typedFNFTValidator :: () -> PlutusV2.TypedValidator ContractType
 typedFNFTValidator = PlutusV2.mkTypedValidatorParam @ContractType
@@ -109,7 +112,7 @@ buildFNFTContract = PlutusScriptSerialised . scriptSBS
 {-# INLINABLE wrapValidator #-}
 wrapValidator ::
      (PlutusTx.UnsafeFromData a)
-  => (a -> () -> PlutusV2.ScriptContext -> Bool) -- ^
+  => (a -> FNFTRedeemer -> PlutusV2.ScriptContext -> Bool) -- ^
   -> (BuiltinData -> BuiltinData -> BuiltinData -> ())
 wrapValidator f a b ctx =
   check $
