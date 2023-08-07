@@ -57,7 +57,7 @@ main =
 -- -------------------------------- HELPER FUNCTIONS/INSTANCES ---------------------------------------
 -- Init a new blockchain with 10,000,000 ADA and 1 Emurgo token (the operator token).
 mock :: Mock
-mock = initMock defaultBabbage (adaValue 10 _000_000 <> emurgoValue)
+mock = initMock defaultBabbage (adaValue 10_000_000 <> emurgoValue)
 
 instance Testable a => Testable (Run a) where
   property rp =
