@@ -16,9 +16,11 @@
 module GeneralParams
   ( FNFTDatum(..)
   , validityTokenName
+  , MintingRedeemer(..)
   ) where
 
 import qualified Plutus.Script.Utils.Value as Value
+import           Plutus.V2.Ledger.Tx       (TxOutRef)
 import qualified PlutusTx
 import           PlutusTx.Prelude          as P (Integer)
 import           Prelude                   (Show (..))
@@ -41,3 +43,12 @@ PlutusTx.makeIsDataIndexed ''FNFTDatum [('FNFTDatum, 0)]
 
 validityTokenName :: Value.TokenName
 validityTokenName = Value.TokenName "FNFT_VALIDITY"
+
+data MintingRedeemer
+  = InitialMint TxOutRef
+  | Burn
+  deriving (Show)
+
+PlutusTx.makeLift ''MintingRedeemer
+
+PlutusTx.makeIsDataIndexed ''MintingRedeemer [('InitialMint, 0), ('Burn, 1)]

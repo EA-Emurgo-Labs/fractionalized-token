@@ -19,7 +19,6 @@ module MintingContract
   , saveNFTCode
   , policy
   , mintingContractSymbol
-  , MintingRedeemer(..)
   ) where
 
 import           Cardano.Api.Shelley             (PlutusScript (..),
@@ -30,7 +29,7 @@ import qualified Data.ByteString.Lazy            as BSL
 import qualified Data.ByteString.Lazy            as LBS
 import qualified Data.ByteString.Short           as BSS
 import qualified Data.ByteString.Short           as SBS
-import           GeneralParams                   (FNFTDatum (FNFTDatum, fractionAC, emittedFractions), validityTokenName)
+import           GeneralParams                   (FNFTDatum (FNFTDatum, fractionAC, emittedFractions), validityTokenName, MintingRedeemer (..))
 import qualified Ledger.Typed.Scripts            as Scripts
 import           Plutus.Script.Utils.V2.Contexts (ScriptContext, TxInfo (txInfoInputs, txInfoMint, txInfoOutputs),
                                                   TxOutRef, ownCurrencySymbol)
@@ -55,18 +54,10 @@ import           Utility                         (calculateFractionTokenNameHash
                                                   parseOutputDatumInTxOut)
 import Ledger (scriptHashAddress, Script (Script))
 
-data MintingRedeemer
-  = InitialMint TxOutRef
-  | Burn
-
-PlutusTx.makeLift ''MintingRedeemer
-
-PlutusTx.makeIsDataIndexed ''MintingRedeemer [('InitialMint, 0), ('Burn, 1)]
-
 -- This is the validator function of Minting Contract
 {-# INLINABLE mkNFTPolicy #-}
-mkNFTPolicy :: MintingRedeemer -> PlutusV2.ScriptContext -> PlutusV2.ValidatorHash -> Bool
-mkNFTPolicy redeem scriptContext vh =
+mkNFTPolicy :: PlutusV2.ValidatorHash -> MintingRedeemer -> PlutusV2.ScriptContext -> Bool
+mkNFTPolicy vh redeem scriptContext  =
   case redeem of
     InitialMint utxo -> validateInitialMint vh utxo scriptContext
     Burn             -> validateBurn scriptContext
@@ -151,11 +142,12 @@ validateBurn ctx =
         Nothing -> traceError "[Plutus Error]: Can not parse datum"
         Just a  -> a
 
-policy :: Scripts.MintingPolicy
-policy fnftvh = PlutusV2.mkMintingPolicyScript
-  $$(PlutusTx.compile [|| wrap ||])
-  where
-    wrap = Scripts.mkUntypedMintingPolicy . mkNFTPolicy
+policy :: PlutusV2.ValidatorHash -> Scripts.MintingPolicy
+policy fnftvh = PlutusV2.mkMintingPolicyScript $
+  $$(PlutusTx.compile [|| Scripts.mkUntypedMintingPolicy . mkNFTPolicy ||])
+  `PlutusTx.applyCode`
+  PlutusTx.liftCode fnftvh
+
 
 script :: PlutusV2.ValidatorHash -> PlutusV2.Script
 script fnftvh = PlutusV2.unMintingPolicyScript $ policy fnftvh
@@ -173,17 +165,17 @@ mintNFT fnftvh = PlutusScriptSerialised $ scriptSBS fnftvh
 {-# INLINABLE wrapPolicy #-}
 wrapPolicy ::
      PlutusTx.UnsafeFromData a
-  => (a -> ScriptContext -> Bool)
-  -> (BuiltinData -> BuiltinData -> ())
-wrapPolicy f a ctx =
+  => (a -> MintingRedeemer -> ScriptContext -> Bool)
+  -> (BuiltinData -> BuiltinData -> BuiltinData -> ())
+wrapPolicy f a redeem ctx =
   check $
-  f (PlutusTx.unsafeFromBuiltinData a) (PlutusTx.unsafeFromBuiltinData ctx)
+  f (PlutusTx.unsafeFromBuiltinData a) (PlutusTx.unsafeFromBuiltinData redeem) (PlutusTx.unsafeFromBuiltinData ctx)
 
 {-# INLINABLE mkWrappedNFTPolicy #-}
-mkWrappedNFTPolicy :: BuiltinData -> BuiltinData -> ()
+mkWrappedNFTPolicy :: BuiltinData -> BuiltinData -> BuiltinData -> ()
 mkWrappedNFTPolicy = wrapPolicy mkNFTPolicy
 
-policyCode :: PlutusTx.CompiledCode (BuiltinData -> BuiltinData -> ())
+policyCode :: PlutusTx.CompiledCode (BuiltinData -> BuiltinData -> BuiltinData -> ())
 policyCode = $$(PlutusTx.compile [|| mkWrappedNFTPolicy ||])
 
 serializableToScript :: Serialise a => a -> PlutusScript PlutusScriptV2
@@ -211,5 +203,5 @@ saveNFTCode =
     "./built-contracts/minting-parameterized-contract.json"
     policyCode
 
-mintingContractSymbol :: PlutusV2.CurrencySymbol
-mintingContractSymbol = scriptCurrencySymbol policy
+mintingContractSymbol :: PlutusV2.ValidatorHash -> PlutusV2.CurrencySymbol
+mintingContractSymbol = scriptCurrencySymbol . policy
