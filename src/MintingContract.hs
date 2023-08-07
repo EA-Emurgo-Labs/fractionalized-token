@@ -53,6 +53,7 @@ import           Utility                         (calculateFractionTokenNameHash
                                                   extractMintedTokens, getInput,
                                                   hasUTxO,
                                                   parseOutputDatumInTxOut)
+import Ledger (scriptHashAddress, Script (Script))
 
 data MintingRedeemer
   = InitialMint TxOutRef
@@ -64,19 +65,19 @@ PlutusTx.makeIsDataIndexed ''MintingRedeemer [('InitialMint, 0), ('Burn, 1)]
 
 -- This is the validator function of Minting Contract
 {-# INLINABLE mkNFTPolicy #-}
-mkNFTPolicy :: MintingRedeemer -> PlutusV2.ScriptContext -> Bool
-mkNFTPolicy redeem scriptContext =
+mkNFTPolicy :: MintingRedeemer -> PlutusV2.ScriptContext -> PlutusV2.ValidatorHash -> Bool
+mkNFTPolicy redeem scriptContext vh =
   case redeem of
-    InitialMint utxo -> validateInitialMint utxo scriptContext
+    InitialMint utxo -> validateInitialMint vh utxo scriptContext
     Burn             -> validateBurn scriptContext
 
 {-# INLINEABLE validateInitialMint #-}
-validateInitialMint :: TxOutRef -> ScriptContext -> Bool
-validateInitialMint utxo ctx =
+validateInitialMint :: PlutusV2.ValidatorHash -> TxOutRef -> ScriptContext -> Bool
+validateInitialMint fnftvh utxo ctx =
   traceIfFalse
     "[Plutus Error]: Minted ammount fractions not positive"
     (fractionTokensMintedAmount > 0)
-  && traceIfFalse "[Plutus Error]: UTxO used for token name isn't spent" checkUTxOSpent 
+  && traceIfFalse "[Plutus Error]: UTxO used for token name isn't spent" checkUTxOSpent
   && traceIfFalse
     "[Plutus Error]: Script datum incorrectly built"
     (checkOutputDatum $ parseOutputDatumInTxOut info getTxOutHasAsset)
@@ -99,9 +100,10 @@ validateInitialMint utxo ctx =
              (\x -> do
                 let value' = PlutusV2.txOutValue x
                     flatValues = Value.flattenValue value'
-                case find (\(cs, tn, amt) -> cs == ownCS) flatValues of
-                  Nothing -> False
-                  Just _  -> True)
+                PlutusV2.txOutAddress x == scriptHashAddress fnftvh && (
+                    case find (\(cs, tn, _) -> cs == ownCS && tn == fractionTokenName) flatValues of
+                      Nothing -> False
+                      Just _  -> True))
              txOutputs of
         Nothing -> traceError "[Plutus Error]: cannot find the asset in output"
         Just i -> i
@@ -150,19 +152,19 @@ validateBurn ctx =
         Just a  -> a
 
 policy :: Scripts.MintingPolicy
-policy = PlutusV2.mkMintingPolicyScript
+policy fnftvh = PlutusV2.mkMintingPolicyScript
   $$(PlutusTx.compile [|| wrap ||])
   where
-    wrap = Scripts.mkUntypedMintingPolicy mkNFTPolicy
+    wrap = Scripts.mkUntypedMintingPolicy . mkNFTPolicy
 
-script :: PlutusV2.Script
-script = PlutusV2.unMintingPolicyScript policy
+script :: PlutusV2.ValidatorHash -> PlutusV2.Script
+script fnftvh = PlutusV2.unMintingPolicyScript $ policy fnftvh
 
-scriptSBS :: SBS.ShortByteString
-scriptSBS = SBS.toShort $ LBS.toStrict $ serialise script
+scriptSBS :: PlutusV2.ValidatorHash -> SBS.ShortByteString
+scriptSBS fnftvh = SBS.toShort $ LBS.toStrict $ serialise $ script fnftvh
 
-mintNFT :: PlutusScript PlutusScriptV2
-mintNFT = PlutusScriptSerialised scriptSBS
+mintNFT :: PlutusV2.ValidatorHash -> PlutusScript PlutusScriptV2
+mintNFT fnftvh = PlutusScriptSerialised $ scriptSBS fnftvh
 
 -----------------------------------------------------------------------------------------------------------
 ---------------------------------------- MINTING PARAMETERIZED CONTRACT -----------------------------------
