@@ -71,9 +71,10 @@ validateInitialMint fnftvh utxo ctx =
   && traceIfFalse "[Plutus Error]: UTxO used for token name isn't spent" checkUTxOSpent
   && traceIfFalse
     "[Plutus Error]: Script datum incorrectly built"
-    (checkOutputDatum $ parseOutputDatumInTxOut info getTxOutHasAsset)
+    (checkOutputDatum $ parseOutputDatumInTxOut info getTxOutHasFNft)
   && traceIfFalse "[Plutus Error]: Didn't mint exactly fraction tokens and one validity token" (length extractedMintedTokens == 2)
   && traceIfFalse "[Plutus Error]: Didn't mint validity token" (extractMintedAmt validityTokenName extractedMintedTokens == 1)
+  && traceIfFalse "[Plutus Error]: Didn't lock validity token" getTxOutHasValidation
   where
     info :: PlutusV2.TxInfo
     info = PlutusV2.scriptContextTxInfo ctx
@@ -85,8 +86,8 @@ validateInitialMint fnftvh utxo ctx =
     fractionTokensMintedAmount =
       extractMintedAmt fractionTokenName extractedMintedTokens
     checkUTxOSpent = hasUTxO utxo info
-    getTxOutHasAsset :: PlutusV2.TxOut
-    getTxOutHasAsset =
+    getTxOutHasFNft :: PlutusV2.TxOut
+    getTxOutHasFNft =
       case find
              (\x -> do
                 let value' = PlutusV2.txOutValue x
@@ -98,6 +99,19 @@ validateInitialMint fnftvh utxo ctx =
              txOutputs of
         Nothing -> traceError "[Plutus Error]: cannot find the asset in output"
         Just i -> i
+    getTxOutHasValidation :: Bool
+    getTxOutHasValidation =
+      case find
+             (\x -> do
+                let value' = PlutusV2.txOutValue x
+                    flatValues = Value.flattenValue value'
+                PlutusV2.txOutAddress x == scriptHashAddress fnftvh && (
+                    case find (\(cs, tn, _) -> cs == ownCS && tn == validityTokenName) flatValues of
+                      Nothing -> False
+                      Just _  -> True))
+             txOutputs of
+        Nothing -> traceError "[Plutus Error]: cannot find the asset in output"
+        Just i -> True
     -- Check output datum in case of buying the asset on market place
     checkOutputDatum :: Maybe FNFTDatum -> Bool
     checkOutputDatum outputDatum =
