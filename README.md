@@ -19,6 +19,12 @@ fractionalized Token
 - Unlock NFT
     + Minting script need all of F-NFT has the same quantity show on datum and validation token to burn
     + FNFT script check amount burn and release NFT
+- Withdraw F-NFT
+    + NFT and validation token are still locked in FNFT script
+    + Change datum
+- Deposit FN-FT
+    + NFT and validation token are still locked in FNFT script
+    + Change datum
 
 ## Build contract
 ```
