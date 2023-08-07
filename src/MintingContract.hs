@@ -30,7 +30,7 @@ import qualified Data.ByteString.Lazy            as BSL
 import qualified Data.ByteString.Lazy            as LBS
 import qualified Data.ByteString.Short           as BSS
 import qualified Data.ByteString.Short           as SBS
-import           GeneralParams                   (FNFTDatum (FNFTDatum, fractionAC))
+import           GeneralParams                   (FNFTDatum (FNFTDatum, fractionAC, emittedFractions), validityTokenName)
 import qualified Ledger.Typed.Scripts            as Scripts
 import           Plutus.Script.Utils.V2.Contexts (ScriptContext, TxInfo (txInfoInputs, txInfoMint, txInfoOutputs),
                                                   TxOutRef, ownCurrencySymbol)
@@ -45,7 +45,7 @@ import           PlutusTx.Prelude                as P (Bool, BuiltinData,
                                                        Ord ((<), (>)), check,
                                                        find, snd, traceError,
                                                        traceIfFalse, ($), (&&),
-                                                       (++), (>>=))
+                                                       (++), (>>=), negate, length)
 import           Prelude                         (Bool (..), FilePath, IO,
                                                   print, putStrLn, (.))
 import           Utility                         (calculateFractionTokenNameHash,
@@ -75,11 +75,13 @@ validateInitialMint :: TxOutRef -> ScriptContext -> Bool
 validateInitialMint utxo ctx =
   traceIfFalse
     "[Plutus Error]: Minted ammount fractions not positive"
-    (fractionTokensMintedAmount > 0) &&
-  traceIfFalse "[Plutus Error]: UTxO used for token name isn't spent" checkUTxOSpent &&
-  traceIfFalse
+    (fractionTokensMintedAmount > 0)
+  && traceIfFalse "[Plutus Error]: UTxO used for token name isn't spent" checkUTxOSpent 
+  && traceIfFalse
     "[Plutus Error]: Script datum incorrectly built"
     (checkOutputDatum $ parseOutputDatumInTxOut info getTxOutHasAsset)
+  && traceIfFalse "[Plutus Error]: Didn't mint exactly fraction tokens and one validity token" (length extractedMintedTokens == 2)
+  && traceIfFalse "[Plutus Error]: Didn't mint validity token" (extractMintedAmt validityTokenName extractedMintedTokens == 1)
   where
     info :: PlutusV2.TxInfo
     info = PlutusV2.scriptContextTxInfo ctx
@@ -118,9 +120,10 @@ validateInitialMint utxo ctx =
 
 validateBurn :: ScriptContext -> Bool
 validateBurn ctx =
-  traceIfFalse
-    "Burned amount fractions not negative"
-    (fractionTokensMintedAmount < 0)
+    traceIfFalse "[Plutus Error]: Burned amount fractions not negative" (fractionTokensMintedAmount < 0)
+    && traceIfFalse "[Plutus Error]: Didn't burn one validity token" (extractMintedAmt validityTokenName extractedMintedTokens == (-1))
+    && traceIfFalse "[Plutus Error]: Fraction tokens not burned" (negate fractionTokensMintedAmount == emittedFractions (checkDatum inputDatum))
+    && traceIfFalse "[Plutus Error]: Didn't burn exactly fraction tokens and one validity token" (length extractedMintedTokens == 2)
   where
     info :: PlutusV2.TxInfo
     info = PlutusV2.scriptContextTxInfo ctx
