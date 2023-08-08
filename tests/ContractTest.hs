@@ -51,10 +51,11 @@ main =
     "Testing script properties"
     [ testGroup
         "Fractionalized NFT contract"
-        [testProperty "Check full flow " prop_full_flow
+        [ testProperty "Check full flow " prop_full_flow
         , testProperty "Check mint flow " prop_mint_flow
         , testProperty "Check withdraw flow " prop_withdraw_flow
         , testProperty "Check deposit flow " prop_deposit_flow
+        , testProperty "Check burn flow " prop_burn_flow
         ]
     ]
 
@@ -117,6 +118,9 @@ prop_withdraw_flow = runCheckWithdraw
 
 prop_deposit_flow :: Property
 prop_deposit_flow = runCheckDeposit
+
+prop_burn_flow :: Property
+prop_burn_flow = runCheckBurn
 
 -- ---------------------------------------------------------------------------------------------------
 -- ------------------------------------- RUNNING THE TESTS -------------------------------------------
@@ -206,16 +210,17 @@ withdrawTx3 receiver ref valNFT fracVal fracRemainedVal validationVal datumOld d
 
 depositTx :: UserSpend
   -> TxOutRef
+  -> Integer
   -> Value
   -> Value
   -> Value
   -> GeneralParams.FNFTDatum
   -> GeneralParams.FNFTDatum
   -> Tx
-depositTx usp ref valNFT fracRemainedVal validationVal datumOld datumNew =
+depositTx usp ref depositAmt valNFT fracRemainedVal validationVal datumOld datumNew =
   mconcat
     [ userSpend usp
-    , spendScript fnftContract ref (Deposit 10) datumOld
+    , spendScript fnftContract ref (Deposit depositAmt) datumOld
     , payToScript fnftContract  (HashDatum datumNew) (valNFT <> fracRemainedVal <> validationVal)
     ]
 
@@ -340,7 +345,7 @@ testValues = do
   let [(ref, out)] = depositUtxos
   uspUser <- spend user fracValDeposit
 
-  let txDeposit = depositTx uspUser ref nftVal fracRemainedValDeposit validationVal  fnftDatumNew fnftDatum
+  let txDeposit = depositTx uspUser ref 10 nftVal fracRemainedValDeposit validationVal  fnftDatumNew fnftDatum
   submitTx user txDeposit
   Plutus.Model.waitUntil 50
 
@@ -507,10 +512,140 @@ testValueDeposit = do
           }
 
   -- check wrong deposit quantity
-  let txDeposit1 = depositTx uspUser ref nftVal fracRemainedValDeposit validationVal  fnftDatumNew fnftDatumDeposit
+  let txDeposit1 = depositTx uspUser ref 10 nftVal fracRemainedValDeposit validationVal  fnftDatumNew fnftDatumDeposit
   mustFail . submitTx user $ txDeposit1
   -- correct tx
-  let txDeposit = depositTx uspUser ref nftVal fracRemainedValDeposit validationVal  fnftDatumNew fnftDatum
+  let txDeposit = depositTx uspUser ref 10 nftVal fracRemainedValDeposit validationVal  fnftDatumNew fnftDatum
   submitTx user txDeposit
+  Plutus.Model.waitUntil 50
+  noErrors
+
+runCheckBurn :: Property
+runCheckBurn = monadic property check
+  where
+    check = do
+      isGood <- run $ testValueBurn
+      assert isGood
+
+testValueBurn :: Run Bool
+testValueBurn = do
+  [issuer, user] <- setupUsers
+  utxos <- utxoAt issuer
+  let nftVal = fakeValue fake 1
+      [(ref, out)] = utxos
+      fracTN = TokenName $ calculateFractionTokenNameHash ref
+      validationTN = TokenName $ fromString "FNFT_VALIDITY"
+      fracVal = singleton (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ()) fracTN 1000
+      validationVal =
+        singleton (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ())  validationTN 1
+  uspIssuer <- spend issuer nftVal
+  let fnftDatum =
+        GeneralParams.FNFTDatum
+          { GeneralParams.fractionAC =
+              assetClass (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ()) fracTN
+          , GeneralParams.emittedFractions = 1000
+          , GeneralParams.nftAC = emurgoToken
+          , GeneralParams.remainedFractions = 1000
+          }
+  let tx = lockTx uspIssuer ref nftVal fracVal validationVal fnftDatum
+  submitTx issuer tx
+  Plutus.Model.waitUntil 50
+
+  let fnftDatumNew =
+        GeneralParams.FNFTDatum
+          { GeneralParams.fractionAC =
+              assetClass (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ()) fracTN
+          , GeneralParams.emittedFractions = 1000
+          , GeneralParams.nftAC = emurgoToken
+          , GeneralParams.remainedFractions = 990
+          }
+
+  let fracValWithdraw =
+        singleton (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ())  fracTN (10)
+      fracRemainedValWithdraw =
+        singleton (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ())  fracTN (990)
+
+  withdrawUtxos <- utxoAt fnftContract
+  let [(ref, out)] = withdrawUtxos
+
+  let txWithdraw = withdrawTx user ref nftVal fracValWithdraw fracRemainedValWithdraw validationVal fnftDatum fnftDatumNew
+  submitTx user txWithdraw
+  Plutus.Model.waitUntil 50
+  let fracValDeposit =
+        singleton (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ())  fracTN (9)
+      fracRemainedValDeposit =
+        singleton (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ())  fracTN (999)
+
+  depositUtxos <- utxoAt fnftContract
+  let [(ref, out)] = depositUtxos
+  uspUser <- spend user fracValDeposit
+
+  let fnftDatumDepositRemain =
+        GeneralParams.FNFTDatum
+          { GeneralParams.fractionAC =
+              assetClass (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ()) fracTN
+          , GeneralParams.emittedFractions = 1000
+          , GeneralParams.nftAC = emurgoToken
+          , GeneralParams.remainedFractions = 999
+          }
+
+  let txDeposit = depositTx uspUser ref 9 nftVal fracRemainedValDeposit validationVal fnftDatumNew fnftDatumDepositRemain
+  submitTx user txDeposit
+  Plutus.Model.waitUntil 50
+
+  let fracValBurn =
+        singleton (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ())  fracTN (-1000)
+      validationValBurn =
+        singleton (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ()) validationTN (-1)
+  burnUtxos <- utxoAt fnftContract
+  let nft =
+        find
+          (\x -> do
+             let (txOutRef', txOut') = x
+                 value' = txOutValue txOut'
+                 flatValues = flattenValue value'
+             case find
+                    (\(cs, tn, amt) ->
+                       cs == MintingContract.mintingContractSymbol (FNFTContract.validatorHash ()) )
+                    flatValues of
+               Nothing -> False
+               Just _  -> True)
+          burnUtxos
+  let (txOutRef, txOut) = fromJust nft
+  -- check not enough F-NFT
+  let txBurn =
+        unlockTx issuer txOutRef nftVal fracValBurn validationValBurn fnftDatum
+  mustFail . submitTx issuer $ txBurn
+
+  let fracValDeposit1 =
+        singleton (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ())  fracTN (1)
+      fracRemainedValDeposit1 =
+        singleton (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ())  fracTN (1000)
+
+  depositUtxos1 <- utxoAt fnftContract
+  let [(ref, out)] = depositUtxos1
+  uspUser1 <- spend user fracValDeposit1
+  let txDeposit1 = depositTx uspUser1 ref 1 nftVal fracRemainedValDeposit1 validationVal fnftDatumDepositRemain fnftDatum
+  submitTx user txDeposit1
+  Plutus.Model.waitUntil 50
+  -- correct tx
+  burnUtxos2 <- utxoAt fnftContract
+  let nft2 =
+        find
+          (\x -> do
+             let (txOutRef', txOut') = x
+                 value' = txOutValue txOut'
+                 flatValues = flattenValue value'
+             case find
+                    (\(cs, tn, amt) ->
+                       cs == MintingContract.mintingContractSymbol (FNFTContract.validatorHash ()) )
+                    flatValues of
+               Nothing -> False
+               Just _  -> True)
+          burnUtxos2
+  let (txOutRef, txOut) = fromJust nft2
+  let txBurn2 =
+        unlockTx issuer txOutRef nftVal fracValBurn validationValBurn fnftDatum
+  submitTx issuer txBurn2
   Plutus.Model.waitUntil 50
   noErrors
