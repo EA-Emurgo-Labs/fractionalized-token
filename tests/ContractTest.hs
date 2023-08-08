@@ -51,7 +51,9 @@ main =
     "Testing script properties"
     [ testGroup
         "Fractionalized NFT contract"
-        [testProperty "Check mint fnft " prop_mint_fnft]
+        [testProperty "Check full flow " prop_full_flow
+        , testProperty "Check mint flow " prop_mint_flow
+        ]
     ]
 
 -- ---------------------------------------------------------------------------------------------------
@@ -102,8 +104,11 @@ policyMintingContractScript = TypedPolicy $ toV2 Main.getMintingPolicy
 
 -- ---------------------------------------------------------------------------------------------------
 -- ------------------------------------- TESTING PROPERTIES ------------------------------------------
-prop_mint_fnft :: Property
-prop_mint_fnft = runChecks
+prop_full_flow :: Property
+prop_full_flow = runChecks
+
+prop_mint_flow :: Property
+prop_mint_flow = runCheckMint
 
 -- ---------------------------------------------------------------------------------------------------
 -- ------------------------------------- RUNNING THE TESTS -------------------------------------------
@@ -174,9 +179,66 @@ depositTx usp ref valNFT fracRemainedVal validationVal datumOld datumNew =
     , payToScript fnftContract  (HashDatum datumNew) (valNFT <> fracRemainedVal <> validationVal)
     ]
 
+runCheckMint :: Property
+runCheckMint = monadic property check
+  where
+    check = do
+      isGood <- run $ testValueMint
+      assert isGood
+
+testValueMint :: Run Bool
+testValueMint = do
+  [issuer, user] <- setupUsers
+  utxos <- utxoAt issuer
+  let nftVal = fakeValue fake 1
+      [(ref, out)] = utxos
+      fracTN = TokenName $ calculateFractionTokenNameHash ref
+      validationTN = TokenName $ fromString "FNFT_VALIDITY"
+      fracVal = singleton (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ()) fracTN 1000
+      fracVal1 = singleton (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ()) fracTN 1001
+      validationVal =
+        singleton (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ())  validationTN 1
+  uspIssuer <- spend issuer nftVal
+  let fnftDatum =
+        GeneralParams.FNFTDatum
+          { GeneralParams.fractionAC =
+              assetClass (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ()) fracTN
+          , GeneralParams.emittedFractions = 1000
+          , GeneralParams.nftAC = emurgoToken
+          , GeneralParams.remainedFractions = 1000
+          }
+  let fnftDatum2 =
+        GeneralParams.FNFTDatum
+          { GeneralParams.fractionAC =
+              assetClass (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ()) validationTN
+          , GeneralParams.emittedFractions = 1000
+          , GeneralParams.nftAC = emurgoToken
+          , GeneralParams.remainedFractions = 1000
+          }
+  let fnftDatum3 =
+        GeneralParams.FNFTDatum
+          { GeneralParams.fractionAC =
+              assetClass (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ()) fracTN
+          , GeneralParams.emittedFractions = 1000
+          , GeneralParams.nftAC = emurgoToken
+          , GeneralParams.remainedFractions = 1001
+          }
+  let tx = lockTx uspIssuer ref nftVal fracVal validationVal fnftDatum
+  submitTx issuer tx
+  -- check wrong quantity of F-NFt
+  let tx1 = lockTx uspIssuer ref nftVal fracVal1 validationVal fnftDatum
+  mustFail . submitTx issuer $ tx1
+  -- check wrong fractionAC
+  let tx2 = lockTx uspIssuer ref nftVal fracVal validationVal fnftDatum2
+  mustFail . submitTx issuer $ tx2
+  -- check wrong remainedFractions
+  let tx3 = lockTx uspIssuer ref nftVal fracVal validationVal fnftDatum3
+  mustFail . submitTx issuer $ tx3
+  Plutus.Model.waitUntil 50
+  noErrors
+
 runChecks :: Property
 runChecks = monadic property check
-  -- monadic property check
   where
     check = do
       isGood <- run $ testValues
