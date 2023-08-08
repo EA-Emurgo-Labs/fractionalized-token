@@ -54,6 +54,7 @@ main =
         [testProperty "Check full flow " prop_full_flow
         , testProperty "Check mint flow " prop_mint_flow
         , testProperty "Check withdraw flow " prop_withdraw_flow
+        , testProperty "Check deposit flow " prop_deposit_flow
         ]
     ]
 
@@ -113,6 +114,9 @@ prop_mint_flow = runCheckMint
 
 prop_withdraw_flow :: Property
 prop_withdraw_flow = runCheckWithdraw
+
+prop_deposit_flow :: Property
+prop_deposit_flow = runCheckDeposit
 
 -- ---------------------------------------------------------------------------------------------------
 -- ------------------------------------- RUNNING THE TESTS -------------------------------------------
@@ -430,5 +434,83 @@ testValueWithdraw = do
   let txWithdraw = withdrawTx user ref nftVal fracValWithdraw fracRemainedValWithdraw validationVal fnftDatum fnftDatumNew
   submitTx user txWithdraw
 
+  Plutus.Model.waitUntil 50
+  noErrors
+
+runCheckDeposit :: Property
+runCheckDeposit = monadic property check
+  where
+    check = do
+      isGood <- run $ testValueDeposit
+      assert isGood
+
+testValueDeposit :: Run Bool
+testValueDeposit = do
+  [issuer, user] <- setupUsers
+  utxos <- utxoAt issuer
+  let nftVal = fakeValue fake 1
+      [(ref, out)] = utxos
+      fracTN = TokenName $ calculateFractionTokenNameHash ref
+      validationTN = TokenName $ fromString "FNFT_VALIDITY"
+      fracVal = singleton (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ()) fracTN 1000
+      validationVal =
+        singleton (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ())  validationTN 1
+  uspIssuer <- spend issuer nftVal
+  let fnftDatum =
+        GeneralParams.FNFTDatum
+          { GeneralParams.fractionAC =
+              assetClass (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ()) fracTN
+          , GeneralParams.emittedFractions = 1000
+          , GeneralParams.nftAC = emurgoToken
+          , GeneralParams.remainedFractions = 1000
+          }
+  let tx = lockTx uspIssuer ref nftVal fracVal validationVal fnftDatum
+  submitTx issuer tx
+  Plutus.Model.waitUntil 50
+
+  let fnftDatumNew =
+        GeneralParams.FNFTDatum
+          { GeneralParams.fractionAC =
+              assetClass (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ()) fracTN
+          , GeneralParams.emittedFractions = 1000
+          , GeneralParams.nftAC = emurgoToken
+          , GeneralParams.remainedFractions = 990
+          }
+
+  let fracValWithdraw =
+        singleton (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ())  fracTN (10)
+      fracRemainedValWithdraw =
+        singleton (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ())  fracTN (990)
+
+  withdrawUtxos <- utxoAt fnftContract
+  let [(ref, out)] = withdrawUtxos
+
+  let txWithdraw = withdrawTx user ref nftVal fracValWithdraw fracRemainedValWithdraw validationVal fnftDatum fnftDatumNew
+  submitTx user txWithdraw
+  Plutus.Model.waitUntil 50
+  let fracValDeposit =
+        singleton (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ())  fracTN (10)
+      fracRemainedValDeposit =
+        singleton (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ())  fracTN (1000)
+
+  depositUtxos <- utxoAt fnftContract
+  let [(ref, out)] = depositUtxos
+  uspUser <- spend user fracValDeposit
+
+  let fnftDatumDeposit =
+        GeneralParams.FNFTDatum
+          { GeneralParams.fractionAC =
+              assetClass (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ()) fracTN
+          , GeneralParams.emittedFractions = 1000
+          , GeneralParams.nftAC = emurgoToken
+          , GeneralParams.remainedFractions = 999
+          }
+
+  -- check wrong deposit quantity
+  let txDeposit1 = depositTx uspUser ref nftVal fracRemainedValDeposit validationVal  fnftDatumNew fnftDatumDeposit
+  mustFail . submitTx user $ txDeposit1
+  -- correct tx
+  let txDeposit = depositTx uspUser ref nftVal fracRemainedValDeposit validationVal  fnftDatumNew fnftDatum
+  submitTx user txDeposit
   Plutus.Model.waitUntil 50
   noErrors
