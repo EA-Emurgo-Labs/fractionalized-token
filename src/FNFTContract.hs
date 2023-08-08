@@ -159,7 +159,7 @@ mkValidator _ inputDatum redeem scriptContext =
     checkOutputValidation txout = do
       let value' = PlutusV2.txOutValue txout
           flatValues = Value.flattenValue value'
-          validationCS = fst $ Value.unAssetClass $ nftAC inputDatum
+          validationCS = fst $ Value.unAssetClass $ fractionAC inputDatum
           validationTN = validityTokenName
       case find
              (\(cs, tn, amt) ->
