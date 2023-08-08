@@ -16,8 +16,9 @@ import           Data.Maybe                (fromJust)
 import           Data.String
 import           FNFTContract
 import           GeneralParams
+import           GeneralParams             (FNFTDatum (nftAC, remainedFractions),
+                                            FNFTRedeemer (..))
 import           GHC.Num                   ((*))
-import           MintingContract           (MintingRedeemer (..))
 import qualified MintingContract
 import           Plutus.Model
 import           Plutus.Script.Utils.Value
@@ -93,7 +94,7 @@ fnftContract :: TypedValidator datum redeemer
 fnftContract = TypedValidator $ toV2 $ FNFTContract.validator ()
 
 getMintingPolicy :: MintingPolicy
-getMintingPolicy = MintingContract.policy
+getMintingPolicy = MintingContract.policy $ FNFTContract.validatorHash ()
 
 -- minting contract policy's script
 policyMintingContractScript :: TypedPolicy MintingRedeemer
@@ -137,9 +138,40 @@ unlockTx ::
   -> Tx
 unlockTx receiver ref valNFT fracVal validationVal datum =
   mconcat
-    [ spendScript fnftContract ref () datum
+    [ spendScript fnftContract ref Claim datum
     , mintValue policyMintingContractScript Burn (fracVal <> validationVal)
     , payToKey receiver (valNFT)
+    ]
+
+withdrawTx :: PubKeyHash
+  -> TxOutRef
+  -> Value
+  -> Value
+  -> Value
+  -> Value
+  -> GeneralParams.FNFTDatum
+  -> GeneralParams.FNFTDatum
+  -> Tx
+withdrawTx receiver ref valNFT fracVal fracRemainedVal validationVal datumOld datumNew =
+  mconcat
+    [ spendScript fnftContract ref (Withdraw 10) datumOld
+    , payToKey receiver (fracVal)
+    , payToScript fnftContract  (HashDatum datumNew) (valNFT <> fracRemainedVal <> validationVal)
+    ]
+
+depositTx :: UserSpend
+  -> TxOutRef
+  -> Value
+  -> Value
+  -> Value
+  -> GeneralParams.FNFTDatum
+  -> GeneralParams.FNFTDatum
+  -> Tx
+depositTx usp ref valNFT fracRemainedVal validationVal datumOld datumNew =
+  mconcat
+    [ userSpend usp
+    , spendScript fnftContract ref (Deposit 10) datumOld
+    , payToScript fnftContract  (HashDatum datumNew) (valNFT <> fracRemainedVal <> validationVal)
     ]
 
 runChecks :: Property
@@ -152,29 +184,65 @@ runChecks = monadic property check
 
 testValues :: Run Bool
 testValues = do
-  [issuer, buyer] <- setupUsers
+  [issuer, user] <- setupUsers
   utxos <- utxoAt issuer
-  let nftVal = fakeValue fake 10
+  let nftVal = fakeValue fake 1
       [(ref, out)] = utxos
       fracTN = TokenName $ calculateFractionTokenNameHash ref
       validationTN = TokenName $ fromString "FNFT_VALIDITY"
-      fracVal = singleton MintingContract.mintingContractSymbol fracTN 1000
+      fracVal = singleton (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ()) fracTN 1000
       validationVal =
-        singleton MintingContract.mintingContractSymbol validationTN 1
+        singleton (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ())  validationTN 1
   uspIssuer <- spend issuer nftVal
   let fnftDatum =
         GeneralParams.FNFTDatum
           { GeneralParams.fractionAC =
-              assetClass MintingContract.mintingContractSymbol fracTN
+              assetClass (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ()) fracTN
           , GeneralParams.emittedFractions = 1000
+          , GeneralParams.nftAC = emurgoToken
+          , GeneralParams.remainedFractions = 1000
           }
   let tx = lockTx uspIssuer ref nftVal fracVal validationVal fnftDatum
   submitTx issuer tx
   Plutus.Model.waitUntil 50
+
+  let fnftDatumNew =
+        GeneralParams.FNFTDatum
+          { GeneralParams.fractionAC =
+              assetClass (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ()) fracTN
+          , GeneralParams.emittedFractions = 1000
+          , GeneralParams.nftAC = emurgoToken
+          , GeneralParams.remainedFractions = 990
+          }
+
+  let fracValWithdraw =
+        singleton (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ())  fracTN (10)
+      fracRemainedValWithdraw =
+        singleton (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ())  fracTN (990)
+
+  withdrawUtxos <- utxoAt fnftContract
+  let [(ref, out)] = withdrawUtxos
+
+  let txWithdraw = withdrawTx user ref nftVal fracValWithdraw fracRemainedValWithdraw validationVal fnftDatum fnftDatumNew
+  submitTx user txWithdraw
+  Plutus.Model.waitUntil 50
+  let fracValDeposit =
+        singleton (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ())  fracTN (10)
+      fracRemainedValDeposit =
+        singleton (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ())  fracTN (1000)
+
+  depositUtxos <- utxoAt fnftContract
+  let [(ref, out)] = depositUtxos
+  uspUser <- spend user fracValDeposit
+
+  let txDeposit = depositTx uspUser ref nftVal fracRemainedValDeposit validationVal  fnftDatumNew fnftDatum
+  submitTx user txDeposit
+  Plutus.Model.waitUntil 50
+
   let fracValBurn =
-        singleton MintingContract.mintingContractSymbol fracTN (-1000)
+        singleton (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ())  fracTN (-1000)
       validationValBurn =
-        singleton MintingContract.mintingContractSymbol validationTN (-1)
+        singleton (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash ()) validationTN (-1)
   burnUtxos <- utxoAt fnftContract
   let nft =
         find
@@ -184,7 +252,7 @@ testValues = do
                  flatValues = flattenValue value'
              case find
                     (\(cs, tn, amt) ->
-                       cs == MintingContract.mintingContractSymbol)
+                       cs == MintingContract.mintingContractSymbol (FNFTContract.validatorHash ()) )
                     flatValues of
                Nothing -> False
                Just _  -> True)
