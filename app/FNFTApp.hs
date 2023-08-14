@@ -19,7 +19,7 @@ main = do
   let fnftContract = "built-contracts/fnft-contract.json"
   -- Built the plutus script for Marketplace Contract
   resultFNFTContract <-
-    writeFileTextEnvelope fnftContract Nothing $ buildFNFTContract ()
+    writeFileTextEnvelope fnftContract Nothing $ buildFNFTContract
   case resultFNFTContract of
     Left err -> Haskell.print $ displayError err
     Right () ->

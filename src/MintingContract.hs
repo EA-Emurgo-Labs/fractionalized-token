@@ -16,7 +16,7 @@
 
 module MintingContract
   ( mintNFT
-  , saveNFTCode
+  , saveNFTMintingCode
   , policy
   , mintingContractSymbol
   ) where
@@ -244,8 +244,8 @@ writeScriptToFile filePath plutusScript =
 writeCodeToFile :: FilePath -> PlutusTx.CompiledCode a -> IO ()
 writeCodeToFile filePath = writeScriptToFile filePath . codeToScript
 
-saveNFTCode :: IO ()
-saveNFTCode =
+saveNFTMintingCode :: IO ()
+saveNFTMintingCode =
   writeCodeToFile
     "./built-contracts/minting-parameterized-contract.json"
     policyCode

@@ -55,8 +55,8 @@ instance Eq FNFTDatum where
 
 -- This is the validator function of FNFT Contract
 {-# INLINABLE mkValidator #-}
-mkValidator :: () -> FNFTDatum -> FNFTRedeemer -> PlutusV2.ScriptContext -> Bool
-mkValidator _ inputDatum redeem scriptContext =
+mkValidator :: FNFTDatum -> FNFTRedeemer -> PlutusV2.ScriptContext -> Bool
+mkValidator inputDatum redeem scriptContext =
   case redeem of
     Claim ->
       if forgedFractionTokens < 0
@@ -189,27 +189,27 @@ instance Scripts.ValidatorTypes ContractType where
   type DatumType ContractType = FNFTDatum
   type RedeemerType ContractType = FNFTRedeemer
 
-typedFNFTValidator :: () -> PlutusV2.TypedValidator ContractType
-typedFNFTValidator = PlutusV2.mkTypedValidatorParam @ContractType
+typedFNFTValidator :: PlutusV2.TypedValidator ContractType
+typedFNFTValidator = PlutusV2.mkTypedValidator @ContractType
     $$(PlutusTx.compile [|| mkValidator ||])
     $$(PlutusTx.compile [|| wrap ||])
   where
     wrap = Scripts.mkUntypedValidator
 
-validator :: () -> PSU.V2.Validator
-validator = Scripts.validatorScript . typedFNFTValidator
+validator :: PSU.V2.Validator
+validator = Scripts.validatorScript typedFNFTValidator
 
-validatorHash :: () -> PSU.V2.ValidatorHash
-validatorHash = Scripts.validatorHash . typedFNFTValidator
+validatorHash :: PSU.V2.ValidatorHash
+validatorHash = Scripts.validatorHash typedFNFTValidator
 
-script :: () -> PlutusV2.Script
-script = PlutusV2.unValidatorScript . validator
+script :: PlutusV2.Script
+script = PlutusV2.unValidatorScript validator
 
-scriptSBS :: () -> SBS.ShortByteString
-scriptSBS = SBS.toShort . LBS.toStrict . serialise . script
+scriptSBS :: SBS.ShortByteString
+scriptSBS = SBS.toShort . LBS.toStrict . serialise $ script
 
-buildFNFTContract :: () -> PlutusScript PlutusScriptV2
-buildFNFTContract = PlutusScriptSerialised . scriptSBS
+buildFNFTContract :: PlutusScript PlutusScriptV2
+buildFNFTContract = PlutusScriptSerialised scriptSBS
 
 ---------------------------------------------------------------------------------------------------------------
 ------------------------------------------------- HELPER FUNCTIONS --------------------------------------------
@@ -228,7 +228,7 @@ wrapValidator f a b ctx =
 
 {-# INLINABLE mkWrappedValidator #-}
 mkWrappedValidator :: BuiltinData -> BuiltinData -> BuiltinData -> ()
-mkWrappedValidator = wrapValidator $ mkValidator ()
+mkWrappedValidator = wrapValidator mkValidator
 
 validatorCode ::
      PlutusTx.CompiledCode (BuiltinData -> BuiltinData -> BuiltinData -> ())

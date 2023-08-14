@@ -6,9 +6,13 @@
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TypeFamilies          #-}
 
-import           FNFTContract (saveFNFTCode)
-import           Prelude      (IO)
+import           FNFTContract    (saveFNFTCode)
+import           MintingContract (saveNFTMintingCode)
+import           Prelude         (IO)
 
 -- This is the main function for parameterized contracts
 main :: IO ()
-main = FNFTContract.saveFNFTCode
+main = do
+    FNFTContract.saveFNFTCode
+    MintingContract.saveNFTMintingCode
+
