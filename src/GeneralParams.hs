@@ -24,7 +24,7 @@ import           Data.ByteString           (ByteString)
 import qualified Data.ByteString           as Data
 import           Plutus.Script.Utils.Value (TokenName)
 import qualified Plutus.Script.Utils.Value as Value
-import           Plutus.V2.Ledger.Tx       (TxOutRef)
+import           Plutus.V2.Ledger.Tx       (TxId, TxOutRef)
 import qualified PlutusTx
 import           PlutusTx.Prelude          as P (BuiltinByteString, Integer)
 import           Prelude                   (Show (..))
@@ -47,7 +47,7 @@ validityTokenName :: Value.TokenName
 validityTokenName = Value.TokenName "FNFT_VALIDITY"
 
 data MintingRedeemer
-  = InitialMint TxOutRef
+  = InitialMint BuiltinByteString Integer
   | Burn
   deriving (Show)
 

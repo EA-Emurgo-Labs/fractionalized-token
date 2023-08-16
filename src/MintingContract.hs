@@ -57,6 +57,7 @@ import           Utility                         (calculateFractionTokenNameHash
                                                   extractMintedTokens, getInput,
                                                   hasUTxO,
                                                   parseOutputDatumInTxOut)
+import PlutusTx.Prelude ((||))
 
 -- This is the validator function of Minting Contract
 {-# INLINABLE mkNFTPolicy #-}
@@ -64,13 +65,13 @@ mkNFTPolicy ::
      PlutusV2.ValidatorHash -> MintingRedeemer -> PlutusV2.ScriptContext -> Bool
 mkNFTPolicy vh redeem scriptContext =
   case redeem of
-    InitialMint utxo -> validateInitialMint vh utxo scriptContext
+    InitialMint txid index -> validateInitialMint vh (PlutusV2.TxOutRef (PlutusV2.TxId txid) index) scriptContext
     Burn             -> validateBurn scriptContext
 
 {-# INLINEABLE validateInitialMint #-}
 validateInitialMint ::
      PlutusV2.ValidatorHash -> TxOutRef -> ScriptContext -> Bool
-validateInitialMint fnftvh utxo ctx =
+validateInitialMint fnftvh utxo ctx = 
   traceIfFalse
     "[Plutus Error]: Minted ammount fractions not positive"
     (fractionTokensMintedAmount > 0) &&
