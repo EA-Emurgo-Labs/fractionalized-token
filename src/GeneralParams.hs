@@ -34,7 +34,8 @@ data FNFTDatum =
     { fractionCS        :: Value.CurrencySymbol
     , fractionTN        :: Value.TokenName
     , emittedFractions  :: !Integer
-    , nftAC             :: !Value.AssetClass
+    , nftCS             :: Value.CurrencySymbol
+    , nftTN             :: Value.TokenName
     , remainedFractions :: !Integer
     }
   deriving (Show)

@@ -135,7 +135,7 @@ validateInitialMint fnftvh utxo ctx =
     checkOutputDatum :: Maybe FNFTDatum -> Bool
     checkOutputDatum outputDatum =
       case outputDatum of
-        Just (FNFTDatum fractionCS fractionTN emittedFractions nftAC remainedFractions ) ->
+        Just (FNFTDatum fractionCS fractionTN emittedFractions nftCS nftTN remainedFractions ) ->
           traceIfFalse
             "[Plutus Error]: datum fractionAC incorrect"
             (assetClass fractionCS fractionTN == assetClass ownCS fractionTokenName) &&

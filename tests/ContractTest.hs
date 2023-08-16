@@ -16,7 +16,7 @@ import           Data.Maybe                (fromJust)
 import           Data.String
 import           FNFTContract
 import           GeneralParams
-import           GeneralParams             (FNFTDatum (nftAC, remainedFractions),
+import           GeneralParams             (FNFTDatum (nftCS, remainedFractions),
                                             FNFTRedeemer (..))
 import           GHC.Num                   ((*))
 import qualified MintingContract
@@ -26,7 +26,8 @@ import           Plutus.V2.Ledger.Api
 import           PlutusTx.Builtins
 import           PlutusTx.Prelude          (Bool (..), Eq ((==)), Ord ((>)),
                                             find, isJust, isNothing, length,
-                                            return, ($), (-), (.))
+                                            return, snd, ($), (-), (.))
+import           PlutusTx.Prelude          (fst)
 import           Prelude                   (Bool (True), IO,
                                             Maybe (Just, Nothing),
                                             Monad (return), Semigroup ((<>)),
@@ -249,7 +250,8 @@ testValueMint = do
           { GeneralParams.fractionCS = MintingContract.mintingContractSymbol $ FNFTContract.validatorHash
           , GeneralParams.fractionTN = fracTN
           , GeneralParams.emittedFractions = 1000
-          , GeneralParams.nftAC = emurgoToken
+          , GeneralParams.nftCS = fst $ unAssetClass emurgoToken
+          , GeneralParams.nftTN = snd $ unAssetClass emurgoToken
           , GeneralParams.remainedFractions = 1000
           }
   let fnftDatum2 =
@@ -257,7 +259,8 @@ testValueMint = do
           { GeneralParams.fractionCS = MintingContract.mintingContractSymbol $ FNFTContract.validatorHash
           , GeneralParams.fractionTN = validationTN
           , GeneralParams.emittedFractions = 1000
-          , GeneralParams.nftAC = emurgoToken
+          , GeneralParams.nftCS = fst $ unAssetClass emurgoToken
+          , GeneralParams.nftTN = snd $ unAssetClass emurgoToken
           , GeneralParams.remainedFractions = 1000
           }
   let fnftDatum3 =
@@ -265,7 +268,8 @@ testValueMint = do
           { GeneralParams.fractionCS = MintingContract.mintingContractSymbol $ FNFTContract.validatorHash
           , GeneralParams.fractionTN = fracTN
           , GeneralParams.emittedFractions = 1000
-          , GeneralParams.nftAC = emurgoToken
+          , GeneralParams.nftCS = fst $ unAssetClass emurgoToken
+          , GeneralParams.nftTN = snd $ unAssetClass emurgoToken
           , GeneralParams.remainedFractions = 1001
           }
 
@@ -309,7 +313,8 @@ testValues = do
           { GeneralParams.fractionCS = MintingContract.mintingContractSymbol $ FNFTContract.validatorHash
           , GeneralParams.fractionTN = fracTN
           , GeneralParams.emittedFractions = 1000
-          , GeneralParams.nftAC = emurgoToken
+          , GeneralParams.nftCS = fst $ unAssetClass emurgoToken
+          , GeneralParams.nftTN = snd $ unAssetClass emurgoToken
           , GeneralParams.remainedFractions = 1000
           }
   let tx = lockTx uspIssuer ref nftVal fracVal validationVal fnftDatum
@@ -321,7 +326,8 @@ testValues = do
           { GeneralParams.fractionCS = MintingContract.mintingContractSymbol $ FNFTContract.validatorHash
           , GeneralParams.fractionTN = fracTN
           , GeneralParams.emittedFractions = 1000
-          , GeneralParams.nftAC = emurgoToken
+          , GeneralParams.nftCS = fst $ unAssetClass emurgoToken
+          , GeneralParams.nftTN = snd $ unAssetClass emurgoToken
           , GeneralParams.remainedFractions = 990
           }
 
@@ -398,7 +404,8 @@ testValueWithdraw = do
           { GeneralParams.fractionCS = MintingContract.mintingContractSymbol $ FNFTContract.validatorHash
           , GeneralParams.fractionTN = fracTN
           , GeneralParams.emittedFractions = 1000
-          , GeneralParams.nftAC = emurgoToken
+          , GeneralParams.nftCS = fst $ unAssetClass emurgoToken
+          , GeneralParams.nftTN = snd $ unAssetClass emurgoToken
           , GeneralParams.remainedFractions = 1000
           }
   let tx = lockTx uspIssuer ref nftVal fracVal validationVal fnftDatum
@@ -410,7 +417,8 @@ testValueWithdraw = do
           { GeneralParams.fractionCS = MintingContract.mintingContractSymbol $ FNFTContract.validatorHash
           , GeneralParams.fractionTN = fracTN
           , GeneralParams.emittedFractions = 1000
-          , GeneralParams.nftAC = emurgoToken
+          , GeneralParams.nftCS = fst $ unAssetClass emurgoToken
+          , GeneralParams.nftTN = snd $ unAssetClass emurgoToken
           , GeneralParams.remainedFractions = 990
           }
 
@@ -466,7 +474,8 @@ testValueDeposit = do
           { GeneralParams.fractionCS = MintingContract.mintingContractSymbol $ FNFTContract.validatorHash
           , GeneralParams.fractionTN = fracTN
           , GeneralParams.emittedFractions = 1000
-          , GeneralParams.nftAC = emurgoToken
+          , GeneralParams.nftCS = fst $ unAssetClass emurgoToken
+          , GeneralParams.nftTN = snd $ unAssetClass emurgoToken
           , GeneralParams.remainedFractions = 1000
           }
   let tx = lockTx uspIssuer ref nftVal fracVal validationVal fnftDatum
@@ -478,7 +487,8 @@ testValueDeposit = do
           { GeneralParams.fractionCS = MintingContract.mintingContractSymbol $ FNFTContract.validatorHash
           , GeneralParams.fractionTN = fracTN
           , GeneralParams.emittedFractions = 1000
-          , GeneralParams.nftAC = emurgoToken
+          , GeneralParams.nftCS = fst $ unAssetClass emurgoToken
+          , GeneralParams.nftTN = snd $ unAssetClass emurgoToken
           , GeneralParams.remainedFractions = 990
           }
 
@@ -507,7 +517,8 @@ testValueDeposit = do
           { GeneralParams.fractionCS = MintingContract.mintingContractSymbol $ FNFTContract.validatorHash
           , GeneralParams.fractionTN = fracTN
           , GeneralParams.emittedFractions = 1000
-          , GeneralParams.nftAC = emurgoToken
+          , GeneralParams.nftCS = fst $ unAssetClass emurgoToken
+          , GeneralParams.nftTN = snd $ unAssetClass emurgoToken
           , GeneralParams.remainedFractions = 999
           }
 
@@ -544,7 +555,8 @@ testValueBurn = do
           { GeneralParams.fractionCS = MintingContract.mintingContractSymbol $ FNFTContract.validatorHash
           , GeneralParams.fractionTN = fracTN
           , GeneralParams.emittedFractions = 1000
-          , GeneralParams.nftAC = emurgoToken
+          , GeneralParams.nftCS = fst $ unAssetClass emurgoToken
+          , GeneralParams.nftTN = snd $ unAssetClass emurgoToken
           , GeneralParams.remainedFractions = 1000
           }
   let tx = lockTx uspIssuer ref nftVal fracVal validationVal fnftDatum
@@ -556,7 +568,8 @@ testValueBurn = do
           { GeneralParams.fractionCS = MintingContract.mintingContractSymbol $ FNFTContract.validatorHash
           , GeneralParams.fractionTN = fracTN
           , GeneralParams.emittedFractions = 1000
-          , GeneralParams.nftAC = emurgoToken
+          , GeneralParams.nftCS = fst $ unAssetClass emurgoToken
+          , GeneralParams.nftTN = snd $ unAssetClass emurgoToken
           , GeneralParams.remainedFractions = 990
           }
 
@@ -585,7 +598,8 @@ testValueBurn = do
           { GeneralParams.fractionCS = MintingContract.mintingContractSymbol $ FNFTContract.validatorHash
           , GeneralParams.fractionTN = fracTN
           , GeneralParams.emittedFractions = 1000
-          , GeneralParams.nftAC = emurgoToken
+          , GeneralParams.nftCS = fst $ unAssetClass emurgoToken
+          , GeneralParams.nftTN = snd $ unAssetClass emurgoToken
           , GeneralParams.remainedFractions = 999
           }
 

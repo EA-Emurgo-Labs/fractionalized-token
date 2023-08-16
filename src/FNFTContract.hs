@@ -48,11 +48,14 @@ import           Utility                              (getInput,
                                                        parseOutputDatumInTxOut)
 
 instance Eq FNFTDatum where
-  FNFTDatum fractionAC emittedFractions nftAC remainedFractions fractionTN == FNFTDatum fractionAC' emittedFractions' nftAC' remainedFractions' fractionTN'=
-    fractionAC == fractionAC' &&
+  FNFTDatum fractionCS fractionTN emittedFractions nftCS nftTN remainedFractions == FNFTDatum fractionCS' fractionTN' emittedFractions' nftCS' nftTN' remainedFractions' =
+    fractionCS == fractionCS' &&
+    fractionTN == fractionTN' &&
     emittedFractions == emittedFractions' &&
-    nftAC == nftAC' && remainedFractions == remainedFractions' &&
-    fractionTN == fractionTN'
+    nftCS == nftCS' && 
+    nftTN == nftTN' && 
+    remainedFractions == remainedFractions'
+    
 
 -- This is the validator function of FNFT Contract
 {-# INLINABLE mkValidator #-}
@@ -111,7 +114,7 @@ mkValidator inputDatum redeem scriptContext =
     checkOutputDatum :: Bool -> Maybe FNFTDatum -> Integer -> Bool
     checkOutputDatum isWithdraw outputDatum amount =
       case outputDatum of
-        Just (FNFTDatum fractionCS' fractionTN' emittedFractions' nftAC' remainedFractions') ->
+        Just (FNFTDatum fractionCS' fractionTN' emittedFractions' nftCS' nftTN' remainedFractions') ->
           traceIfFalse
             "[Plutus Error]: datum fractionAC incorrect"
             (fractionCS' == fractionCS inputDatum && fractionTN' == fractionTN inputDatum) &&
@@ -126,7 +129,7 @@ mkValidator inputDatum redeem scriptContext =
                else remainedFractions inputDatum + amount) &&
           traceIfFalse
             "[Plutus Error]: nftAC incorrect"
-            (nftAC' == nftAC inputDatum)
+            (nftCS' == nftCS inputDatum && nftTN' == nftTN inputDatum)
         Nothing -> traceError "[Plutus Error]: output datum must not be empty"
     checkOutputFNFTValue :: Bool -> PlutusV2.TxOut -> Integer -> Bool
     checkOutputFNFTValue isWithdraw txout amount = do
@@ -149,10 +152,10 @@ mkValidator inputDatum redeem scriptContext =
     checkOutputNFTValue txout = do
       let value' = PlutusV2.txOutValue txout
           flatValues = Value.flattenValue value'
-          nftCS = fst $ Value.unAssetClass $ nftAC inputDatum
-          nftTN = snd $ Value.unAssetClass $ nftAC inputDatum
+          nftCS' = nftCS inputDatum
+          nftTN' = nftTN inputDatum
       case find
-             (\(cs, tn, amt) -> cs == nftCS && tn == nftTN && amt == 1)
+             (\(cs, tn, amt) -> cs == nftCS' && tn == nftTN' && amt == 1)
              flatValues of
         Nothing -> False
         Just _  -> True
