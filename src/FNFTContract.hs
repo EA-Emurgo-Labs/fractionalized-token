@@ -48,10 +48,11 @@ import           Utility                              (getInput,
                                                        parseOutputDatumInTxOut)
 
 instance Eq FNFTDatum where
-  FNFTDatum fractionAC emittedFractions nftAC remainedFractions == FNFTDatum fractionAC' emittedFractions' nftAC' remainedFractions' =
+  FNFTDatum fractionAC emittedFractions nftAC remainedFractions fractionTN == FNFTDatum fractionAC' emittedFractions' nftAC' remainedFractions' fractionTN'=
     fractionAC == fractionAC' &&
     emittedFractions == emittedFractions' &&
-    nftAC == nftAC' && remainedFractions == remainedFractions'
+    nftAC == nftAC' && remainedFractions == remainedFractions' &&
+    fractionTN == fractionTN'
 
 -- This is the validator function of FNFT Contract
 {-# INLINABLE mkValidator #-}
@@ -104,16 +105,16 @@ mkValidator inputDatum redeem scriptContext =
     info :: PlutusV2.TxInfo
     info = PlutusV2.scriptContextTxInfo scriptContext
     txMint = PlutusV2.txInfoMint info
-    forgedFractionTokens = assetClassValueOf txMint (fractionAC inputDatum)
+    forgedFractionTokens = assetClassValueOf txMint (Value.assetClass (fractionCS inputDatum) (fractionTN inputDatum))
     getMainOutput :: PlutusV2.TxOut
     getMainOutput = head (getContinuingOutputs scriptContext)
     checkOutputDatum :: Bool -> Maybe FNFTDatum -> Integer -> Bool
     checkOutputDatum isWithdraw outputDatum amount =
       case outputDatum of
-        Just (FNFTDatum fractionAC' emittedFractions' nftAC' remainedFractions') ->
+        Just (FNFTDatum fractionCS' fractionTN' emittedFractions' nftAC' remainedFractions') ->
           traceIfFalse
             "[Plutus Error]: datum fractionAC incorrect"
-            (fractionAC' == fractionAC inputDatum) &&
+            (fractionCS' == fractionCS inputDatum && fractionTN' == fractionTN inputDatum) &&
           traceIfFalse
             "[Plutus Error]: emittedFractions incorrect"
             (emittedFractions' == emittedFractions inputDatum) &&
@@ -131,8 +132,8 @@ mkValidator inputDatum redeem scriptContext =
     checkOutputFNFTValue isWithdraw txout amount = do
       let value' = PlutusV2.txOutValue txout
           flatValues = Value.flattenValue value'
-          fnftCS = fst $ Value.unAssetClass $ fractionAC inputDatum
-          fnftTN = snd $ Value.unAssetClass $ fractionAC inputDatum
+          fnftCS = fractionCS inputDatum
+          fnftTN = fractionTN inputDatum
       case find
              (\(cs, tn, amt) ->
                 cs == fnftCS &&
@@ -159,7 +160,7 @@ mkValidator inputDatum redeem scriptContext =
     checkOutputValidation txout = do
       let value' = PlutusV2.txOutValue txout
           flatValues = Value.flattenValue value'
-          validationCS = fst $ Value.unAssetClass $ fractionAC inputDatum
+          validationCS = fractionCS inputDatum
           validationTN = validityTokenName
       case find
              (\(cs, tn, amt) ->
@@ -180,7 +181,7 @@ validateReturningAndBurning forgedFractionTokens fntDatum scriptContext =
     txMint = PlutusV2.txInfoMint info
     fractionTokensBurnt =
       forgedFractionTokens == negate (emittedFractions fntDatum)
-    validityTokenAC = getValidityTokenAC (fractionAC fntDatum)
+    validityTokenAC = getValidityTokenAC (Value.assetClass (fractionCS fntDatum) (fractionTN fntDatum))
     validityTokenBurned = assetClassValueOf txMint validityTokenAC == -1
 
 data ContractType

@@ -20,15 +20,19 @@ module GeneralParams
   , FNFTRedeemer(..)
   ) where
 
+import           Data.ByteString           (ByteString)
+import qualified Data.ByteString           as Data
+import           Plutus.Script.Utils.Value (TokenName)
 import qualified Plutus.Script.Utils.Value as Value
 import           Plutus.V2.Ledger.Tx       (TxOutRef)
 import qualified PlutusTx
-import           PlutusTx.Prelude          as P (Integer)
+import           PlutusTx.Prelude          as P (BuiltinByteString, Integer)
 import           Prelude                   (Show (..))
 
 data FNFTDatum =
   FNFTDatum
-    { fractionAC        :: !Value.AssetClass
+    { fractionCS        :: Value.CurrencySymbol
+    , fractionTN        :: Value.TokenName
     , emittedFractions  :: !Integer
     , nftAC             :: !Value.AssetClass
     , remainedFractions :: !Integer

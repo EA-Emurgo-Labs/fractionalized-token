@@ -246,24 +246,24 @@ testValueMint = do
   uspIssuer <- spend issuer nftVal
   let fnftDatum =
         GeneralParams.FNFTDatum
-          { GeneralParams.fractionAC =
-              assetClass (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash) fracTN
+          { GeneralParams.fractionCS = MintingContract.mintingContractSymbol $ FNFTContract.validatorHash
+          , GeneralParams.fractionTN = fracTN
           , GeneralParams.emittedFractions = 1000
           , GeneralParams.nftAC = emurgoToken
           , GeneralParams.remainedFractions = 1000
           }
   let fnftDatum2 =
         GeneralParams.FNFTDatum
-          { GeneralParams.fractionAC =
-              assetClass (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash) validationTN
+          { GeneralParams.fractionCS = MintingContract.mintingContractSymbol $ FNFTContract.validatorHash
+          , GeneralParams.fractionTN = validationTN
           , GeneralParams.emittedFractions = 1000
           , GeneralParams.nftAC = emurgoToken
           , GeneralParams.remainedFractions = 1000
           }
   let fnftDatum3 =
         GeneralParams.FNFTDatum
-          { GeneralParams.fractionAC =
-              assetClass (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash) fracTN
+          { GeneralParams.fractionCS = MintingContract.mintingContractSymbol $ FNFTContract.validatorHash
+          , GeneralParams.fractionTN = fracTN
           , GeneralParams.emittedFractions = 1000
           , GeneralParams.nftAC = emurgoToken
           , GeneralParams.remainedFractions = 1001
@@ -306,8 +306,8 @@ testValues = do
   uspIssuer <- spend issuer nftVal
   let fnftDatum =
         GeneralParams.FNFTDatum
-          { GeneralParams.fractionAC =
-              assetClass (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash) fracTN
+          { GeneralParams.fractionCS = MintingContract.mintingContractSymbol $ FNFTContract.validatorHash
+          , GeneralParams.fractionTN = fracTN
           , GeneralParams.emittedFractions = 1000
           , GeneralParams.nftAC = emurgoToken
           , GeneralParams.remainedFractions = 1000
@@ -318,8 +318,8 @@ testValues = do
 
   let fnftDatumNew =
         GeneralParams.FNFTDatum
-          { GeneralParams.fractionAC =
-              assetClass (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash) fracTN
+          { GeneralParams.fractionCS = MintingContract.mintingContractSymbol $ FNFTContract.validatorHash
+          , GeneralParams.fractionTN = fracTN
           , GeneralParams.emittedFractions = 1000
           , GeneralParams.nftAC = emurgoToken
           , GeneralParams.remainedFractions = 990
@@ -395,8 +395,8 @@ testValueWithdraw = do
   uspIssuer <- spend issuer nftVal
   let fnftDatum =
         GeneralParams.FNFTDatum
-          { GeneralParams.fractionAC =
-              assetClass (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash) fracTN
+          { GeneralParams.fractionCS = MintingContract.mintingContractSymbol $ FNFTContract.validatorHash
+          , GeneralParams.fractionTN = fracTN
           , GeneralParams.emittedFractions = 1000
           , GeneralParams.nftAC = emurgoToken
           , GeneralParams.remainedFractions = 1000
@@ -407,8 +407,8 @@ testValueWithdraw = do
 
   let fnftDatumNew =
         GeneralParams.FNFTDatum
-          { GeneralParams.fractionAC =
-              assetClass (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash) fracTN
+          { GeneralParams.fractionCS = MintingContract.mintingContractSymbol $ FNFTContract.validatorHash
+          , GeneralParams.fractionTN = fracTN
           , GeneralParams.emittedFractions = 1000
           , GeneralParams.nftAC = emurgoToken
           , GeneralParams.remainedFractions = 990
@@ -463,8 +463,8 @@ testValueDeposit = do
   uspIssuer <- spend issuer nftVal
   let fnftDatum =
         GeneralParams.FNFTDatum
-          { GeneralParams.fractionAC =
-              assetClass (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash) fracTN
+          { GeneralParams.fractionCS = MintingContract.mintingContractSymbol $ FNFTContract.validatorHash
+          , GeneralParams.fractionTN = fracTN
           , GeneralParams.emittedFractions = 1000
           , GeneralParams.nftAC = emurgoToken
           , GeneralParams.remainedFractions = 1000
@@ -475,8 +475,8 @@ testValueDeposit = do
 
   let fnftDatumNew =
         GeneralParams.FNFTDatum
-          { GeneralParams.fractionAC =
-              assetClass (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash) fracTN
+          { GeneralParams.fractionCS = MintingContract.mintingContractSymbol $ FNFTContract.validatorHash
+          , GeneralParams.fractionTN = fracTN
           , GeneralParams.emittedFractions = 1000
           , GeneralParams.nftAC = emurgoToken
           , GeneralParams.remainedFractions = 990
@@ -504,8 +504,8 @@ testValueDeposit = do
 
   let fnftDatumDeposit =
         GeneralParams.FNFTDatum
-          { GeneralParams.fractionAC =
-              assetClass (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash) fracTN
+          { GeneralParams.fractionCS = MintingContract.mintingContractSymbol $ FNFTContract.validatorHash
+          , GeneralParams.fractionTN = fracTN
           , GeneralParams.emittedFractions = 1000
           , GeneralParams.nftAC = emurgoToken
           , GeneralParams.remainedFractions = 999
@@ -541,8 +541,8 @@ testValueBurn = do
   uspIssuer <- spend issuer nftVal
   let fnftDatum =
         GeneralParams.FNFTDatum
-          { GeneralParams.fractionAC =
-              assetClass (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash) fracTN
+          { GeneralParams.fractionCS = MintingContract.mintingContractSymbol $ FNFTContract.validatorHash
+          , GeneralParams.fractionTN = fracTN
           , GeneralParams.emittedFractions = 1000
           , GeneralParams.nftAC = emurgoToken
           , GeneralParams.remainedFractions = 1000
@@ -553,8 +553,8 @@ testValueBurn = do
 
   let fnftDatumNew =
         GeneralParams.FNFTDatum
-          { GeneralParams.fractionAC =
-              assetClass (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash) fracTN
+          { GeneralParams.fractionCS = MintingContract.mintingContractSymbol $ FNFTContract.validatorHash
+          , GeneralParams.fractionTN = fracTN
           , GeneralParams.emittedFractions = 1000
           , GeneralParams.nftAC = emurgoToken
           , GeneralParams.remainedFractions = 990
@@ -582,8 +582,8 @@ testValueBurn = do
 
   let fnftDatumDepositRemain =
         GeneralParams.FNFTDatum
-          { GeneralParams.fractionAC =
-              assetClass (MintingContract.mintingContractSymbol $ FNFTContract.validatorHash) fracTN
+          { GeneralParams.fractionCS = MintingContract.mintingContractSymbol $ FNFTContract.validatorHash
+          , GeneralParams.fractionTN = fracTN
           , GeneralParams.emittedFractions = 1000
           , GeneralParams.nftAC = emurgoToken
           , GeneralParams.remainedFractions = 999
