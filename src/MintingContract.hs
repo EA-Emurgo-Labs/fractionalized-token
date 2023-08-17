@@ -29,7 +29,7 @@ import qualified Data.ByteString.Lazy            as BSL
 import qualified Data.ByteString.Lazy            as LBS
 import qualified Data.ByteString.Short           as BSS
 import qualified Data.ByteString.Short           as SBS
-import           GeneralParams                   (FNFTDatum (FNFTDatum, emittedFractions, fractionAC),
+import           GeneralParams                   (FNFTDatum (FNFTDatum, emittedFractions, fractionTN),
                                                   MintingRedeemer (..),
                                                   validityTokenName)
 import           Ledger                          (Script (Script),
@@ -57,6 +57,7 @@ import           Utility                         (calculateFractionTokenNameHash
                                                   extractMintedTokens, getInput,
                                                   hasUTxO,
                                                   parseOutputDatumInTxOut)
+import PlutusTx.Prelude ((||))
 
 -- This is the validator function of Minting Contract
 {-# INLINABLE mkNFTPolicy #-}
@@ -64,13 +65,13 @@ mkNFTPolicy ::
      PlutusV2.ValidatorHash -> MintingRedeemer -> PlutusV2.ScriptContext -> Bool
 mkNFTPolicy vh redeem scriptContext =
   case redeem of
-    InitialMint utxo -> validateInitialMint vh utxo scriptContext
+    InitialMint txid index -> validateInitialMint vh (PlutusV2.TxOutRef (PlutusV2.TxId txid) index) scriptContext
     Burn             -> validateBurn scriptContext
 
 {-# INLINEABLE validateInitialMint #-}
 validateInitialMint ::
      PlutusV2.ValidatorHash -> TxOutRef -> ScriptContext -> Bool
-validateInitialMint fnftvh utxo ctx =
+validateInitialMint fnftvh utxo ctx = 
   traceIfFalse
     "[Plutus Error]: Minted ammount fractions not positive"
     (fractionTokensMintedAmount > 0) &&
@@ -135,10 +136,10 @@ validateInitialMint fnftvh utxo ctx =
     checkOutputDatum :: Maybe FNFTDatum -> Bool
     checkOutputDatum outputDatum =
       case outputDatum of
-        Just (FNFTDatum fractionAC emittedFractions nftAC remainedFractions) ->
+        Just (FNFTDatum fractionCS fractionTN emittedFractions nftCS nftTN remainedFractions ) ->
           traceIfFalse
             "[Plutus Error]: datum fractionAC incorrect"
-            (fractionAC == assetClass ownCS fractionTokenName) &&
+            (assetClass fractionCS fractionTN == assetClass ownCS fractionTokenName) &&
           traceIfFalse
             "[Plutus Error]: emittedFractions incorrect"
             (emittedFractions == fractionTokensMintedAmount) &&
@@ -171,8 +172,7 @@ validateBurn ctx =
     inputDatum =
       parseOutputDatumInTxOut info $
       PlutusV2.txInInfoResolved $ checkInput txInputs
-    fractionTokenName =
-      snd $ Value.unAssetClass $ fractionAC $ checkDatum inputDatum
+    fractionTokenName = fractionTN $ checkDatum inputDatum
     extractedMintedTokens = extractMintedTokens ownCS txMint
     fractionTokensMintedAmount =
       extractMintedAmt fractionTokenName extractedMintedTokens
