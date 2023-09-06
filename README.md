@@ -1,6 +1,9 @@
 # fractionalized-token
 fractionalized Token
 ## Simple fractional business
+- The main flow is that a user will lock their NFT token to FNFT contract and mint amount of FNFT token.
+- With FNFT token, the user can withdraw them and trade on market.
+- After someone collect all of FNFT token, he can deposit again on FNFT contract and burn all of FNFT token in order to get back the NFT.
 ### The project has two script:
 - The minting script: 
     + This script will mint fractionalized NFT (F-NFT) token like normal token (in ETH, it is ERC20) and lock them to FNFT script by side a validation token. 
